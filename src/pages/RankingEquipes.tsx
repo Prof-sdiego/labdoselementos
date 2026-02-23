@@ -1,0 +1,78 @@
+import { useState } from 'react';
+import { mockEquipes, mockAlunos, mockSalas } from '@/data/mockData';
+import { getNivel } from '@/types/game';
+import { LevelBadge, XPProgressBar } from '@/components/game/LevelBadge';
+import { Trophy, Monitor } from 'lucide-react';
+import { Link } from 'react-router-dom';
+
+export default function RankingEquipes() {
+  const [salaId, setSalaId] = useState('s1');
+  const [detailEquipe, setDetailEquipe] = useState<string | null>(null);
+
+  const equipes = mockEquipes.filter(e => e.salaId === salaId).sort((a, b) => b.xpTotal - a.xpTotal);
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-display font-bold text-primary text-glow flex items-center gap-2">
+            <Trophy className="w-6 h-6" /> Ranking das Equipes
+          </h1>
+        </div>
+        <div className="flex items-center gap-3">
+          <select value={salaId} onChange={e => setSalaId(e.target.value)} className="bg-secondary text-secondary-foreground rounded-lg px-3 py-2 text-sm border border-border font-mono">
+            {mockSalas.map(s => <option key={s.id} value={s.id}>{s.nome}</option>)}
+          </select>
+          <Link to="/tv" className="flex items-center gap-2 rounded-lg bg-primary/15 text-primary px-3 py-2 text-sm font-bold hover:bg-primary/25 transition-colors">
+            <Monitor className="w-4 h-4" /> Modo TV
+          </Link>
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        {equipes.map((equipe, idx) => {
+          const membros = mockAlunos.filter(a => a.equipeId === equipe.id).sort((a, b) => b.xpIndividual - a.xpIndividual);
+          const isOpen = detailEquipe === equipe.id;
+          return (
+            <div key={equipe.id} className="rounded-xl border border-border bg-card overflow-hidden">
+              <button onClick={() => setDetailEquipe(isOpen ? null : equipe.id)} className="w-full p-4 text-left hover:bg-secondary/30 transition-colors">
+                <div className="flex items-center gap-4">
+                  <div className={`flex items-center justify-center w-12 h-12 rounded-full font-display font-bold text-xl ${idx === 0 ? 'bg-level-6/20 text-level-6 animate-pulse-glow' : idx === 1 ? 'bg-level-7/20 text-level-7' : idx === 2 ? 'bg-level-2/20 text-level-2' : 'bg-secondary text-muted-foreground'}`}>
+                    {idx + 1}º
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                      <span className="font-bold text-foreground">{equipe.nome}</span>
+                      <LevelBadge xp={equipe.xpTotal} size="sm" />
+                    </div>
+                    <XPProgressBar xp={equipe.xpTotal} />
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-2xl font-display font-bold text-primary">{equipe.xpTotal}</p>
+                    <p className="text-xs text-muted-foreground">XP</p>
+                  </div>
+                </div>
+              </button>
+              {isOpen && (
+                <div className="border-t border-border p-4 bg-secondary/20">
+                  <h4 className="text-sm font-display font-bold text-muted-foreground mb-3">Membros</h4>
+                  <div className="space-y-2">
+                    {membros.map(a => (
+                      <div key={a.id} className="flex items-center justify-between text-sm">
+                        <span className="text-foreground">{a.nome}</span>
+                        <div className="flex items-center gap-3">
+                          <span className="text-xs text-muted-foreground">{a.classe}</span>
+                          <span className="font-mono font-bold text-primary">{a.xpIndividual} XP</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
