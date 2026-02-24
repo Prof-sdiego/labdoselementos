@@ -3,7 +3,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useSalas, useAlunos, useEquipes, useLancamentos, useLancamentoAlunos, calcAlunoXP } from '@/hooks/useSupabaseData';
 import { supabase } from '@/integrations/supabase/client';
 import { CLASSES_INFO, getNivel } from '@/types/game';
-import { Users, Plus, Shield, Unlock, Upload } from 'lucide-react';
+import { Users, Plus, Shield, Unlock, Upload, Download } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -64,6 +64,15 @@ export default function Alunos() {
     if (fileRef.current) fileRef.current.value = '';
   };
 
+  const handleDownloadTemplate = () => {
+    const csv = 'nome,classe\nJoão Silva,Pesquisador\nMaria Souza,Comunicador\nPedro Lima,Engenheiro';
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'modelo_alunos.csv'; a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -74,6 +83,9 @@ export default function Alunos() {
           <select value={activeSalaId} onChange={e => setSalaId(e.target.value)} className="bg-secondary text-secondary-foreground rounded-lg px-3 py-2 text-sm border border-border font-mono">
             {salas.map((s: any) => <option key={s.id} value={s.id}>{s.nome}</option>)}
           </select>
+          <button onClick={handleDownloadTemplate} className="flex items-center gap-2 rounded-lg bg-secondary text-foreground px-4 py-2 text-sm font-bold hover:bg-secondary/80 transition-colors border border-border">
+            <Download className="w-4 h-4" /> Modelo CSV
+          </button>
           <label className="flex items-center gap-2 rounded-lg bg-secondary text-foreground px-4 py-2 text-sm font-bold cursor-pointer hover:bg-secondary/80 transition-colors border border-border">
             <Upload className="w-4 h-4" /> Importar CSV
             <input ref={fileRef} type="file" accept=".csv" onChange={handleCSV} className="hidden" />
