@@ -4,7 +4,7 @@ import { useSalas, useEquipes, useAlunos, useLancamentos, useLancamentoEquipes, 
 import { supabase } from '@/integrations/supabase/client';
 import { getNivel } from '@/types/game';
 import { LevelBadge, XPProgressBar } from '@/components/game/LevelBadge';
-import { FlaskConical, Plus, Users, Key, Copy } from 'lucide-react';
+import { FlaskConical, Plus, Users, Key, Copy, Pencil, Check, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -23,6 +23,8 @@ export default function Equipes() {
   const [showForm, setShowForm] = useState(false);
   const [nome, setNome] = useState('');
   const [leaderCode, setLeaderCode] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editNome, setEditNome] = useState('');
 
   // Auto-select first sala
   const activeSalaId = salaId || salas[0]?.id || '';
@@ -37,6 +39,15 @@ export default function Equipes() {
     if (error) { toast.error(error.message); return; }
     toast.success(`Equipe criada! Código do líder: ${code}`);
     setShowForm(false); setNome(''); setLeaderCode('');
+    qc.invalidateQueries({ queryKey: ['equipes'] });
+  };
+
+  const handleRename = async (id: string) => {
+    if (!editNome.trim()) return;
+    const { error } = await supabase.from('equipes').update({ nome: editNome.trim() }).eq('id', id);
+    if (error) { toast.error(error.message); return; }
+    toast.success('Nome atualizado!');
+    setEditingId(null);
     qc.invalidateQueries({ queryKey: ['equipes'] });
   };
 
@@ -77,7 +88,19 @@ export default function Equipes() {
             <div key={equipe.id} className="rounded-xl border border-border bg-card p-5 space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="font-display font-bold text-foreground text-lg">{equipe.nome}</h3>
+                  {editingId === equipe.id ? (
+                    <div className="flex items-center gap-1">
+                      <input value={editNome} onChange={e => setEditNome(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleRename(equipe.id)}
+                        className="rounded border border-border bg-secondary px-2 py-1 text-sm text-foreground font-bold" autoFocus />
+                      <button onClick={() => handleRename(equipe.id)} className="text-primary"><Check className="w-4 h-4" /></button>
+                      <button onClick={() => setEditingId(null)} className="text-muted-foreground"><X className="w-4 h-4" /></button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1.5">
+                      <h3 className="font-display font-bold text-foreground text-lg">{equipe.nome}</h3>
+                      <button onClick={() => { setEditingId(equipe.id); setEditNome(equipe.nome); }} className="text-muted-foreground hover:text-primary"><Pencil className="w-3.5 h-3.5" /></button>
+                    </div>
+                  )}
                   <LevelBadge xp={xpTotal} size="sm" />
                 </div>
                 <div className="text-right">
