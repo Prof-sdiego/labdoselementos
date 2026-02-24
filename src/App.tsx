@@ -61,7 +61,7 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <BrowserRouter>
+<BrowserRouter basename="/labdoselementos">
         <AuthProvider>
           <AppRoutes />
         </AuthProvider>
