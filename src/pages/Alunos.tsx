@@ -2,10 +2,14 @@ import { useState, useRef } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useSalas, useAlunos, useEquipes, useLancamentos, useLancamentoAlunos, calcAlunoXP } from '@/hooks/useSupabaseData';
 import { supabase } from '@/integrations/supabase/client';
-import { CLASSES_INFO, getNivel } from '@/types/game';
-import { Users, Plus, Shield, Unlock, Upload, Download } from 'lucide-react';
+import { CLASSES_INFO } from '@/types/game';
+import { Users, Plus, Shield, Upload, Download, Pencil, Trash2, Check, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger
+} from '@/components/ui/alert-dialog';
 
 export default function Alunos() {
   const { user } = useAuth();
@@ -24,6 +28,12 @@ export default function Alunos() {
   const [classe, setClasse] = useState('Pesquisador');
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // Edit state
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editNome, setEditNome] = useState('');
+  const [editEquipeId, setEditEquipeId] = useState('');
+  const [editClasse, setEditClasse] = useState('');
+
   const handleAdd = async () => {
     if (!nome || !user || !activeSalaId) return;
     const { error } = await supabase.from('alunos').insert({
@@ -32,6 +42,31 @@ export default function Alunos() {
     if (error) { toast.error(error.message); return; }
     toast.success('Aluno cadastrado!');
     setShowForm(false); setNome('');
+    qc.invalidateQueries({ queryKey: ['alunos'] });
+  };
+
+  const startEdit = (aluno: any) => {
+    setEditingId(aluno.id);
+    setEditNome(aluno.nome);
+    setEditEquipeId(aluno.equipe_id || '');
+    setEditClasse(aluno.classe);
+  };
+
+  const handleEdit = async () => {
+    if (!editingId || !editNome) return;
+    const { error } = await supabase.from('alunos').update({
+      nome: editNome, equipe_id: editEquipeId || null, classe: editClasse
+    }).eq('id', editingId);
+    if (error) { toast.error(error.message); return; }
+    toast.success('Aluno atualizado!');
+    setEditingId(null);
+    qc.invalidateQueries({ queryKey: ['alunos'] });
+  };
+
+  const handleDelete = async (id: string) => {
+    const { error } = await supabase.from('alunos').delete().eq('id', id);
+    if (error) { toast.error(error.message); return; }
+    toast.success('Aluno excluído!');
     qc.invalidateQueries({ queryKey: ['alunos'] });
   };
 
@@ -47,16 +82,12 @@ export default function Alunos() {
     const rows = dataLines.map(line => {
       const parts = line.split(/[,;]/).map(s => s.trim().replace(/^"|"$/g, ''));
       return {
-        user_id: user.id,
-        nome: parts[0],
-        sala_id: activeSalaId,
-        equipe_id: null,
+        user_id: user.id, nome: parts[0], sala_id: activeSalaId, equipe_id: null,
         classe: (['Pesquisador', 'Comunicador', 'Engenheiro'].includes(parts[1]) ? parts[1] : 'Pesquisador')
       };
     }).filter(r => r.nome);
 
     if (rows.length === 0) { toast.error('Nenhum aluno encontrado no CSV'); return; }
-
     const { error } = await supabase.from('alunos').insert(rows);
     if (error) { toast.error(error.message); return; }
     toast.success(`${rows.length} alunos importados!`);
@@ -127,6 +158,7 @@ export default function Alunos() {
                 <th className="text-left px-4 py-3 font-display font-bold text-muted-foreground">Classe</th>
                 <th className="text-center px-4 py-3 font-display font-bold text-muted-foreground">XP</th>
                 <th className="text-center px-4 py-3 font-display font-bold text-muted-foreground">Poder</th>
+                <th className="text-center px-4 py-3 font-display font-bold text-muted-foreground">Ações</th>
               </tr>
             </thead>
             <tbody>
@@ -134,7 +166,42 @@ export default function Alunos() {
                 const equipe = equipes.find((e: any) => e.id === aluno.equipe_id);
                 const xpInd = calcAlunoXP(aluno.id, lancamentos, lancAlunos);
                 const classeInfo = CLASSES_INFO[aluno.classe as keyof typeof CLASSES_INFO];
-                // For poder, we'd need equipe XP - simplified here
+                const isEditing = editingId === aluno.id;
+
+                if (isEditing) {
+                  return (
+                    <tr key={aluno.id} className="border-b border-border/50 bg-secondary/30">
+                      <td className="px-4 py-2">
+                        <input value={editNome} onChange={e => setEditNome(e.target.value)}
+                          className="w-full rounded border border-border bg-background px-2 py-1 text-sm text-foreground" />
+                      </td>
+                      <td className="px-4 py-2">
+                        <select value={editEquipeId} onChange={e => setEditEquipeId(e.target.value)}
+                          className="w-full rounded border border-border bg-background px-2 py-1 text-sm text-foreground">
+                          <option value="">Sem equipe</option>
+                          {equipes.map((eq: any) => <option key={eq.id} value={eq.id}>{eq.nome}</option>)}
+                        </select>
+                      </td>
+                      <td className="px-4 py-2">
+                        <select value={editClasse} onChange={e => setEditClasse(e.target.value)}
+                          className="w-full rounded border border-border bg-background px-2 py-1 text-sm text-foreground">
+                          <option value="Pesquisador">Pesquisador</option>
+                          <option value="Comunicador">Comunicador</option>
+                          <option value="Engenheiro">Engenheiro</option>
+                        </select>
+                      </td>
+                      <td className="px-4 py-2 text-center font-mono font-bold text-primary">{xpInd}</td>
+                      <td className="px-4 py-2" />
+                      <td className="px-4 py-2 text-center">
+                        <div className="flex items-center justify-center gap-1">
+                          <button onClick={handleEdit} className="p-1 rounded hover:bg-primary/15 text-primary"><Check className="w-4 h-4" /></button>
+                          <button onClick={() => setEditingId(null)} className="p-1 rounded hover:bg-destructive/15 text-muted-foreground"><X className="w-4 h-4" /></button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                }
+
                 return (
                   <tr key={aluno.id} className="border-b border-border/50 hover:bg-secondary/20 transition-colors">
                     <td className="px-4 py-3 font-medium text-foreground">{aluno.nome}</td>
@@ -145,6 +212,34 @@ export default function Alunos() {
                       <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
                         <Shield className="w-3 h-3" /> Nv.{classeInfo?.desbloqueiaNivel || '?'}
                       </span>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <div className="flex items-center justify-center gap-1">
+                        <button onClick={() => startEdit(aluno)} className="p-1 rounded hover:bg-secondary text-muted-foreground hover:text-foreground">
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <button className="p-1 rounded hover:bg-destructive/15 text-muted-foreground hover:text-destructive">
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Excluir aluno</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Tem certeza que deseja excluir <strong>{aluno.nome}</strong>? Esta ação não pode ser desfeita.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => handleDelete(aluno.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                                Excluir
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
                     </td>
                   </tr>
                 );
