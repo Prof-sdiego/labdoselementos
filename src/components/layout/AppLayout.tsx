@@ -2,9 +2,11 @@ import { ReactNode, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Zap, Trophy, Users, GraduationCap, FlaskConical,
-  ScrollText, History, Layers, ArrowLeftRight, Monitor, Menu, X, Atom
+  ScrollText, History, Layers, ArrowLeftRight, Monitor, Menu, X, Atom,
+  ShoppingCart, AlertTriangle, LogOut
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/hooks/useAuth';
 
 const navItems = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
@@ -18,24 +20,24 @@ const navItems = [
   { to: '/historico', label: 'Histórico XP', icon: History },
   { to: '/fases', label: 'Fases', icon: Layers },
   { to: '/transferencias', label: 'Transferências', icon: ArrowLeftRight },
+  { to: '/loja', label: 'Loja', icon: ShoppingCart },
+  { to: '/ocorrencias', label: 'Ocorrências', icon: AlertTriangle },
   { to: '/tv', label: 'Modo TV', icon: Monitor },
 ];
 
 export default function AppLayout({ children }: { children: ReactNode }) {
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { signOut } = useAuth();
 
-  // TV mode has no layout
   if (location.pathname === '/tv') return <>{children}</>;
 
   return (
     <div className="flex h-screen overflow-hidden">
-      {/* Mobile overlay */}
       {mobileOpen && (
         <div className="fixed inset-0 z-40 bg-background/80 backdrop-blur-sm lg:hidden" onClick={() => setMobileOpen(false)} />
       )}
 
-      {/* Sidebar */}
       <aside className={cn(
         "fixed inset-y-0 left-0 z-50 flex w-64 flex-col bg-sidebar border-r border-sidebar-border transition-transform duration-300 lg:static lg:translate-x-0",
         mobileOpen ? "translate-x-0" : "-translate-x-full"
@@ -57,26 +59,26 @@ export default function AppLayout({ children }: { children: ReactNode }) {
           {navItems.map(item => {
             const active = location.pathname === item.to;
             return (
-              <Link
-                key={item.to}
-                to={item.to}
-                onClick={() => setMobileOpen(false)}
+              <Link key={item.to} to={item.to} onClick={() => setMobileOpen(false)}
                 className={cn(
                   "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all",
-                  active
-                    ? "bg-primary/15 text-primary glow-primary"
-                    : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                )}
-              >
+                  active ? "bg-primary/15 text-primary glow-primary" : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                )}>
                 <item.icon className="w-4 h-4 shrink-0" />
                 {item.label}
               </Link>
             );
           })}
         </nav>
+
+        <div className="p-3 border-t border-sidebar-border">
+          <button onClick={() => signOut()} className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground w-full transition-all">
+            <LogOut className="w-4 h-4 shrink-0" />
+            Sair
+          </button>
+        </div>
       </aside>
 
-      {/* Main */}
       <main className="flex-1 overflow-y-auto">
         <header className="sticky top-0 z-30 flex items-center gap-4 border-b border-border bg-background/80 backdrop-blur-sm px-4 py-3 lg:px-6">
           <button onClick={() => setMobileOpen(true)} className="lg:hidden text-muted-foreground">

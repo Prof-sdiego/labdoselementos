@@ -1,21 +1,33 @@
-import { mockEquipes, mockAlunos, mockSalas } from '@/data/mockData';
-import { getNivel, getProgressoNivel } from '@/types/game';
+import { useState } from 'react';
+import { useSalas, useEquipes, useAlunos, useLancamentos, useLancamentoEquipes, useLancamentoAlunos, useShopPurchases, calcEquipeXP, calcAlunoXP } from '@/hooks/useSupabaseData';
+import { getNivel } from '@/types/game';
 import { LevelBadge, XPProgressBar } from '@/components/game/LevelBadge';
 import { Trophy, Star, Target, Zap, FlaskConical, Users } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { useState } from 'react';
 
 export default function Dashboard() {
-  const [salaFilter, setSalaFilter] = useState('s1');
-  const sala = mockSalas.find(s => s.id === salaFilter);
-  const equipesFiltered = mockEquipes.filter(e => e.salaId === salaFilter).sort((a, b) => b.xpTotal - a.xpTotal);
-  const alunosFiltered = mockAlunos.filter(a => a.salaId === salaFilter);
+  const { data: salas = [] } = useSalas();
+  const { data: allEquipes = [] } = useEquipes();
+  const { data: allAlunos = [] } = useAlunos();
+  const { data: lancamentos = [] } = useLancamentos();
+  const { data: lancEquipes = [] } = useLancamentoEquipes();
+  const { data: lancAlunos = [] } = useLancamentoAlunos();
+  const { data: purchases = [] } = useShopPurchases();
 
-  // Cientista do mês = aluno com mais XP individual
+  const [salaFilter, setSalaFilter] = useState('');
+  const activeSala = salaFilter || salas[0]?.id || '';
+
+  const equipesFiltered = allEquipes
+    .filter((e: any) => e.sala_id === activeSala)
+    .map((e: any) => ({ ...e, xpTotal: calcEquipeXP(e.id, lancamentos, lancEquipes, lancAlunos, allAlunos, purchases) }))
+    .sort((a: any, b: any) => b.xpTotal - a.xpTotal);
+
+  const alunosFiltered = allAlunos
+    .filter((a: any) => a.sala_id === activeSala)
+    .map((a: any) => ({ ...a, xpIndividual: calcAlunoXP(a.id, lancamentos, lancAlunos) }));
+
   const cientistaMes = [...alunosFiltered].sort((a, b) => b.xpIndividual - a.xpIndividual)[0];
-
-  // Meta coletiva: equipes nível 4+
-  const equipesNivel4 = equipesFiltered.filter(e => getNivel(e.xpTotal).nivel >= 4).length;
+  const equipesNivel4 = equipesFiltered.filter((e: any) => getNivel(e.xpTotal).nivel >= 4).length;
 
   return (
     <div className="space-y-6">
@@ -24,26 +36,19 @@ export default function Dashboard() {
           <h1 className="text-2xl font-display font-bold text-primary text-glow">Dashboard</h1>
           <p className="text-sm text-muted-foreground">Laboratório dos Elementos — Visão geral</p>
         </div>
-        <select
-          value={salaFilter}
-          onChange={e => setSalaFilter(e.target.value)}
-          className="bg-secondary text-secondary-foreground rounded-lg px-3 py-2 text-sm border border-border font-mono"
-        >
-          {mockSalas.map(s => (
-            <option key={s.id} value={s.id}>{s.nome}</option>
-          ))}
+        <select value={activeSala} onChange={e => setSalaFilter(e.target.value)}
+          className="bg-secondary text-secondary-foreground rounded-lg px-3 py-2 text-sm border border-border font-mono">
+          {salas.map((s: any) => <option key={s.id} value={s.id}>{s.nome}</option>)}
         </select>
       </div>
 
-      {/* Stats cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard icon={FlaskConical} label="Equipes" value={equipesFiltered.length} color="text-primary" />
         <StatCard icon={Users} label="Alunos" value={alunosFiltered.length} color="text-level-3" />
         <StatCard icon={Target} label="Meta Nv.4" value={`${equipesNivel4}/${equipesFiltered.length}`} color="text-level-6" />
-        <StatCard icon={Zap} label="XP Total" value={equipesFiltered.reduce((s, e) => s + e.xpTotal, 0)} color="text-level-5" />
+        <StatCard icon={Zap} label="XP Total" value={equipesFiltered.reduce((s: number, e: any) => s + e.xpTotal, 0)} color="text-level-5" />
       </div>
 
-      {/* Cientista do Mês */}
       {cientistaMes && (
         <div className="rounded-xl border border-level-6/30 bg-card p-5 animate-pulse-glow">
           <div className="flex items-center gap-4">
@@ -55,43 +60,40 @@ export default function Dashboard() {
               <h2 className="text-xl font-display font-bold text-foreground">{cientistaMes.nome}</h2>
               <p className="text-sm text-muted-foreground">
                 {cientistaMes.xpIndividual} XP individual • {cientistaMes.classe} •{' '}
-                {mockEquipes.find(e => e.id === cientistaMes.equipeId)?.nome}
+                {allEquipes.find((e: any) => e.id === cientistaMes.equipe_id)?.nome}
               </p>
             </div>
           </div>
         </div>
       )}
 
-      {/* Ranking das equipes */}
       <div>
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-lg font-display font-bold text-foreground">Ranking das Equipes</h2>
           <Link to="/ranking-equipes" className="text-sm text-primary hover:underline">Ver completo →</Link>
         </div>
         <div className="space-y-3">
-          {equipesFiltered.map((equipe, idx) => {
-            const nivel = getNivel(equipe.xpTotal);
-            return (
-              <div key={equipe.id} className="rounded-xl border border-border bg-card p-4 hover:border-primary/30 transition-colors">
-                <div className="flex items-center gap-4">
-                  <div className={`flex items-center justify-center w-10 h-10 rounded-full font-display font-bold text-lg ${idx === 0 ? 'bg-level-6/20 text-level-6' : idx === 1 ? 'bg-level-7/20 text-level-7' : idx === 2 ? 'bg-level-2/20 text-level-2' : 'bg-secondary text-muted-foreground'}`}>
-                    {idx + 1}º
+          {equipesFiltered.map((equipe: any, idx: number) => (
+            <div key={equipe.id} className="rounded-xl border border-border bg-card p-4 hover:border-primary/30 transition-colors">
+              <div className="flex items-center gap-4">
+                <div className={`flex items-center justify-center w-10 h-10 rounded-full font-display font-bold text-lg ${idx === 0 ? 'bg-level-6/20 text-level-6' : idx === 1 ? 'bg-level-7/20 text-level-7' : idx === 2 ? 'bg-level-2/20 text-level-2' : 'bg-secondary text-muted-foreground'}`}>
+                  {idx + 1}º
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="font-bold text-foreground truncate">{equipe.nome}</span>
+                    <LevelBadge xp={equipe.xpTotal} size="sm" />
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-bold text-foreground truncate">{equipe.nome}</span>
-                      <LevelBadge xp={equipe.xpTotal} size="sm" />
-                    </div>
-                    <XPProgressBar xp={equipe.xpTotal} />
-                  </div>
-                  <div className="text-right shrink-0">
-                    <p className="text-lg font-display font-bold text-primary">{equipe.xpTotal}</p>
-                    <p className="text-xs text-muted-foreground">XP</p>
-                  </div>
+                  <XPProgressBar xp={equipe.xpTotal} />
+                </div>
+                <div className="text-right shrink-0">
+                  <p className="text-lg font-display font-bold text-primary">{equipe.xpTotal}</p>
+                  <p className="text-xs text-muted-foreground">XP</p>
                 </div>
               </div>
-            );
-          })}
+            </div>
+          ))}
+          {equipesFiltered.length === 0 && <p className="text-center text-muted-foreground py-8">Cadastre salas e equipes para ver o ranking.</p>}
         </div>
       </div>
     </div>
