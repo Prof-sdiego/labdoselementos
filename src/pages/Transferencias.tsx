@@ -1,11 +1,40 @@
-import { mockEquipes, mockAlunos, mockSalas } from '@/data/mockData';
-import { ArrowLeftRight, AlertTriangle } from 'lucide-react';
 import { useState } from 'react';
+import { useAuth } from '@/hooks/useAuth';
+import { useSalas, useEquipes, useAlunos, useTransferencias } from '@/hooks/useSupabaseData';
+import { supabase } from '@/integrations/supabase/client';
+import { ArrowLeftRight } from 'lucide-react';
 import { toast } from 'sonner';
+import { useQueryClient } from '@tanstack/react-query';
 
 export default function Transferencias() {
-  const [salaId, setSalaId] = useState('s1');
-  const equipes = mockEquipes.filter(e => e.salaId === salaId);
+  const { user } = useAuth();
+  const { data: salas = [] } = useSalas();
+  const [salaId, setSalaId] = useState('');
+  const activeSala = salaId || salas[0]?.id || '';
+  const { data: equipes = [] } = useEquipes(activeSala || undefined);
+  const { data: allAlunos = [] } = useAlunos(activeSala || undefined);
+  const { data: transferencias = [] } = useTransferencias();
+  const qc = useQueryClient();
+
+  const [transferindo, setTransferindo] = useState<{ alunoId: string; equipeOrigemId: string } | null>(null);
+  const [equipeDestinoId, setEquipeDestinoId] = useState('');
+
+  const handleTransferir = async () => {
+    if (!transferindo || !equipeDestinoId || !user) return;
+    // Update aluno's equipe
+    await supabase.from('alunos').update({ equipe_id: equipeDestinoId }).eq('id', transferindo.alunoId);
+    // Record transfer
+    await supabase.from('transferencias').insert({
+      user_id: user.id,
+      aluno_id: transferindo.alunoId,
+      equipe_origem_id: transferindo.equipeOrigemId,
+      equipe_destino_id: equipeDestinoId
+    });
+    toast.success('Transferência realizada!');
+    setTransferindo(null); setEquipeDestinoId('');
+    qc.invalidateQueries({ queryKey: ['alunos'] });
+    qc.invalidateQueries({ queryKey: ['transferencias'] });
+  };
 
   return (
     <div className="space-y-6 max-w-2xl mx-auto">
@@ -13,41 +42,38 @@ export default function Transferencias() {
         <ArrowLeftRight className="w-6 h-6" /> Transferências
       </h1>
 
-      <div className="rounded-xl border border-level-6/30 bg-level-6/5 p-4 flex items-start gap-3">
-        <AlertTriangle className="w-5 h-5 text-level-6 shrink-0 mt-0.5" />
-        <div className="text-sm text-muted-foreground">
-          <p className="font-bold text-foreground">Atenção: Cada equipe pode receber apenas 1 transferência por semestre.</p>
-          <p className="mt-1">Após a transferência, o aluno mantém seu XP individual, mas passa a contribuir para a nova equipe.</p>
-        </div>
-      </div>
-
-      <select value={salaId} onChange={e => setSalaId(e.target.value)} className="bg-secondary text-secondary-foreground rounded-lg px-3 py-2 text-sm border border-border font-mono w-full">
-        {mockSalas.map(s => <option key={s.id} value={s.id}>{s.nome}</option>)}
+      <select value={activeSala} onChange={e => setSalaId(e.target.value)} className="bg-secondary text-secondary-foreground rounded-lg px-3 py-2 text-sm border border-border font-mono w-full">
+        {salas.map((s: any) => <option key={s.id} value={s.id}>{s.nome}</option>)}
       </select>
 
+      {transferindo && (
+        <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 space-y-3">
+          <p className="text-sm text-foreground">Transferir <strong>{allAlunos.find((a: any) => a.id === transferindo.alunoId)?.nome}</strong> para:</p>
+          <select value={equipeDestinoId} onChange={e => setEquipeDestinoId(e.target.value)} className="w-full bg-secondary text-foreground rounded-lg px-3 py-2 text-sm border border-border">
+            <option value="">Selecione a equipe destino</option>
+            {equipes.filter((e: any) => e.id !== transferindo.equipeOrigemId).map((e: any) => (
+              <option key={e.id} value={e.id}>{e.nome}</option>
+            ))}
+          </select>
+          <div className="flex gap-2">
+            <button onClick={handleTransferir} disabled={!equipeDestinoId} className="rounded-lg bg-primary text-primary-foreground px-4 py-2 text-sm font-bold disabled:opacity-30">Confirmar</button>
+            <button onClick={() => setTransferindo(null)} className="rounded-lg bg-secondary text-foreground px-4 py-2 text-sm">Cancelar</button>
+          </div>
+        </div>
+      )}
+
       <div className="space-y-3">
-        {equipes.map(equipe => {
-          const membros = mockAlunos.filter(a => a.equipeId === equipe.id);
-          const transferenciasUsadas = equipe.transferenciasUsadas > 0;
+        {equipes.map((equipe: any) => {
+          const membros = allAlunos.filter((a: any) => a.equipe_id === equipe.id);
           return (
-            <div key={equipe.id} className={`rounded-xl border p-4 ${transferenciasUsadas ? 'border-destructive/30 bg-card' : 'border-border bg-card'}`}>
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="font-display font-bold text-foreground">{equipe.nome}</h3>
-                <span className={`text-xs font-mono ${transferenciasUsadas ? 'text-destructive' : 'text-primary'}`}>
-                  {transferenciasUsadas ? '✗ Transferência usada' : '✓ Transferência disponível'}
-                </span>
-              </div>
+            <div key={equipe.id} className="rounded-xl border border-border bg-card p-4">
+              <h3 className="font-display font-bold text-foreground mb-3">{equipe.nome}</h3>
               <div className="space-y-1">
-                {membros.map(a => (
+                {membros.map((a: any) => (
                   <div key={a.id} className="flex items-center justify-between text-sm bg-secondary/30 rounded-lg px-3 py-2">
                     <span className="text-foreground">{a.nome}</span>
-                    <button
-                      disabled={transferenciasUsadas}
-                      onClick={() => toast.info('Funcionalidade disponível com o banco de dados conectado')}
-                      className="text-xs text-primary hover:underline disabled:opacity-30 disabled:cursor-not-allowed"
-                    >
-                      Transferir →
-                    </button>
+                    <button onClick={() => setTransferindo({ alunoId: a.id, equipeOrigemId: equipe.id })}
+                      className="text-xs text-primary hover:underline">Transferir →</button>
                   </div>
                 ))}
               </div>
@@ -55,6 +81,26 @@ export default function Transferencias() {
           );
         })}
       </div>
+
+      {transferencias.length > 0 && (
+        <div>
+          <h2 className="font-display font-bold text-foreground mb-3">Histórico de Transferências</h2>
+          <div className="space-y-2">
+            {transferencias.map((t: any) => {
+              const aluno = allAlunos.find((a: any) => a.id === t.aluno_id);
+              const origem = equipes.find((e: any) => e.id === t.equipe_origem_id);
+              const destino = equipes.find((e: any) => e.id === t.equipe_destino_id);
+              return (
+                <div key={t.id} className="rounded-lg border border-border bg-card p-3 text-sm">
+                  <span className="text-foreground">{aluno?.nome}</span>
+                  <span className="text-muted-foreground"> de {origem?.nome} → {destino?.nome}</span>
+                  <span className="text-xs text-muted-foreground ml-2">{new Date(t.data).toLocaleDateString('pt-BR')}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

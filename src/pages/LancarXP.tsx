@@ -1,54 +1,84 @@
 import { useState } from 'react';
-import { mockSalas, mockEquipes, mockAlunos, mockTiposAtividade } from '@/data/mockData';
+import { useAuth } from '@/hooks/useAuth';
+import { useSalas, useEquipes, useAlunos, useTiposAtividade, useLancamentos, useLancamentoEquipes, useLancamentoAlunos, useShopPurchases, calcEquipeXP } from '@/hooks/useSupabaseData';
+import { supabase } from '@/integrations/supabase/client';
 import { Zap, Check, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
+import { useQueryClient } from '@tanstack/react-query';
 
 export default function LancarXP() {
+  const { user } = useAuth();
+  const { data: salas = [] } = useSalas();
+  const { data: atividades = [] } = useTiposAtividade();
+  const { data: allAlunos = [] } = useAlunos();
+  const { data: allEquipes = [] } = useEquipes();
+  const { data: lancamentos = [] } = useLancamentos();
+  const { data: lancEquipes = [] } = useLancamentoEquipes();
+  const { data: lancAlunos = [] } = useLancamentoAlunos();
+  const { data: purchases = [] } = useShopPurchases();
+  const qc = useQueryClient();
+
   const [salaId, setSalaId] = useState('');
   const [atividadeId, setAtividadeId] = useState('');
   const [selectedAlunos, setSelectedAlunos] = useState<string[]>([]);
   const [selectedEquipes, setSelectedEquipes] = useState<string[]>([]);
   const [launched, setLaunched] = useState(false);
 
-  const atividade = mockTiposAtividade.find(a => a.id === atividadeId);
-  const equipesFiltered = mockEquipes.filter(e => e.salaId === salaId);
-  const alunosFiltered = mockAlunos.filter(a => a.salaId === salaId);
+  const atividade = atividades.find((a: any) => a.id === atividadeId);
+  const equipesFiltered = allEquipes.filter((e: any) => e.sala_id === salaId);
+  const alunosFiltered = allAlunos.filter((a: any) => a.sala_id === salaId);
 
-  const toggleAluno = (id: string) => {
-    setSelectedAlunos(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
-  };
+  const toggleAluno = (id: string) => setSelectedAlunos(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  const toggleEquipe = (id: string) => setSelectedEquipes(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
 
-  const toggleEquipe = (id: string) => {
-    setSelectedEquipes(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
-  };
+  const handleLancar = async () => {
+    if (!salaId || !atividadeId || !user || !atividade) return;
 
-  const handleLancar = () => {
-    if (!salaId || !atividadeId) return;
-    if (atividade?.tipo === 'por_aluno' && selectedAlunos.length === 0) return;
-    if (atividade?.tipo === 'por_equipe' && selectedEquipes.length === 0) return;
+    if (atividade.tipo === 'por_aluno') {
+      // Create lancamento for each selected aluno
+      const { data: lanc, error } = await supabase.from('lancamentos_xp').insert({
+        user_id: user.id, atividade_id: atividadeId, sala_id: salaId, xp_concedido: atividade.xp
+      }).select().single();
+      if (error) { toast.error(error.message); return; }
 
-    let xpTotal = 0;
-    if (atividade?.tipo === 'por_aluno') {
-      xpTotal = selectedAlunos.length * atividade.xp;
+      // Link alunos
+      await supabase.from('lancamento_alunos').insert(
+        selectedAlunos.map(aId => ({ lancamento_id: lanc.id, aluno_id: aId }))
+      );
+
       // Check bonus: all members of any team completed
       const equipeBonus: string[] = [];
-      equipesFiltered.forEach(equipe => {
-        const membros = alunosFiltered.filter(a => a.equipeId === equipe.id);
-        const todosFizeram = membros.every(m => selectedAlunos.includes(m.id));
-        if (todosFizeram && membros.length > 0) {
+      for (const equipe of equipesFiltered) {
+        const membros = alunosFiltered.filter((a: any) => a.equipe_id === equipe.id);
+        const todosFizeram = membros.length > 0 && membros.every((m: any) => selectedAlunos.includes(m.id));
+        if (todosFizeram) {
           equipeBonus.push(equipe.nome);
-          xpTotal += 10;
+          const { data: bonusLanc } = await supabase.from('lancamentos_xp').insert({
+            user_id: user.id, atividade_id: atividadeId, sala_id: salaId, xp_concedido: 10
+          }).select().single();
+          if (bonusLanc) {
+            await supabase.from('lancamento_equipes').insert({ lancamento_id: bonusLanc.id, equipe_id: equipe.id });
+          }
         }
-      });
-      if (equipeBonus.length > 0) {
-        toast.success(`🎉 Bônus "Todos entregaram" (+10 XP) para: ${equipeBonus.join(', ')}`);
       }
+      if (equipeBonus.length > 0) toast.success(`🎉 Bônus "Todos entregaram" (+10 XP) para: ${equipeBonus.join(', ')}`);
     } else {
-      xpTotal = selectedEquipes.length * (atividade?.xp || 0);
+      // Per-equipe
+      for (const eqId of selectedEquipes) {
+        const { data: lanc } = await supabase.from('lancamentos_xp').insert({
+          user_id: user.id, atividade_id: atividadeId, sala_id: salaId, xp_concedido: atividade.xp
+        }).select().single();
+        if (lanc) {
+          await supabase.from('lancamento_equipes').insert({ lancamento_id: lanc.id, equipe_id: eqId });
+        }
+      }
     }
 
     setLaunched(true);
-    toast.success(`⚡ ${Math.abs(xpTotal)} XP ${(atividade?.xp || 0) < 0 ? 'removidos' : 'lançados'} com sucesso!`);
+    toast.success(`⚡ XP lançado com sucesso!`);
+    qc.invalidateQueries({ queryKey: ['lancamentos'] });
+    qc.invalidateQueries({ queryKey: ['lancamento_equipes'] });
+    qc.invalidateQueries({ queryKey: ['lancamento_alunos'] });
 
     setTimeout(() => {
       setLaunched(false);
@@ -71,17 +101,15 @@ export default function LancarXP() {
       <div className="rounded-xl border border-border bg-card p-5 space-y-4">
         <h2 className="font-display font-bold text-foreground">1. Selecione a Sala</h2>
         <div className="grid grid-cols-2 gap-3">
-          {mockSalas.filter(s => s.status === 'ativa').map(sala => (
-            <button
-              key={sala.id}
-              onClick={() => { setSalaId(sala.id); setSelectedAlunos([]); setSelectedEquipes([]); }}
-              className={`rounded-lg border p-3 text-left transition-all ${salaId === sala.id ? 'border-primary bg-primary/10 glow-primary' : 'border-border bg-secondary hover:border-primary/30'}`}
-            >
+          {salas.filter((s: any) => s.status === 'ativa').map((sala: any) => (
+            <button key={sala.id} onClick={() => { setSalaId(sala.id); setSelectedAlunos([]); setSelectedEquipes([]); }}
+              className={`rounded-lg border p-3 text-left transition-all ${salaId === sala.id ? 'border-primary bg-primary/10 glow-primary' : 'border-border bg-secondary hover:border-primary/30'}`}>
               <p className="font-bold text-foreground">{sala.nome}</p>
               <p className="text-xs text-muted-foreground">{sala.periodo}</p>
             </button>
           ))}
         </div>
+        {salas.length === 0 && <p className="text-sm text-muted-foreground">Cadastre uma sala primeiro.</p>}
       </div>
 
       {/* Step 2: Atividade */}
@@ -89,12 +117,9 @@ export default function LancarXP() {
         <div className="rounded-xl border border-border bg-card p-5 space-y-4">
           <h2 className="font-display font-bold text-foreground">2. Selecione a Atividade</h2>
           <div className="space-y-2">
-            {mockTiposAtividade.map(at => (
-              <button
-                key={at.id}
-                onClick={() => { setAtividadeId(at.id); setSelectedAlunos([]); setSelectedEquipes([]); }}
-                className={`w-full rounded-lg border p-3 text-left transition-all flex items-center justify-between ${atividadeId === at.id ? 'border-primary bg-primary/10 glow-primary' : 'border-border bg-secondary hover:border-primary/30'}`}
-              >
+            {atividades.map((at: any) => (
+              <button key={at.id} onClick={() => { setAtividadeId(at.id); setSelectedAlunos([]); setSelectedEquipes([]); }}
+                className={`w-full rounded-lg border p-3 text-left transition-all flex items-center justify-between ${atividadeId === at.id ? 'border-primary bg-primary/10 glow-primary' : 'border-border bg-secondary hover:border-primary/30'}`}>
                 <div>
                   <p className="font-bold text-foreground">{at.nome}</p>
                   <p className="text-xs text-muted-foreground">{at.descricao} • {at.tipo === 'por_aluno' ? 'Por Aluno' : 'Por Equipe'}</p>
@@ -114,41 +139,27 @@ export default function LancarXP() {
           <h2 className="font-display font-bold text-foreground">
             3. {atividade.tipo === 'por_aluno' ? 'Marque os Alunos' : 'Selecione as Equipes'}
           </h2>
-
           {atividade.tipo === 'por_aluno' ? (
             <div className="space-y-3">
-              {equipesFiltered.map(equipe => {
-                const membros = alunosFiltered.filter(a => a.equipeId === equipe.id);
-                const todosSelected = membros.every(m => selectedAlunos.includes(m.id));
+              {equipesFiltered.map((equipe: any) => {
+                const membros = alunosFiltered.filter((a: any) => a.equipe_id === equipe.id);
+                const todosSelected = membros.length > 0 && membros.every((m: any) => selectedAlunos.includes(m.id));
                 return (
                   <div key={equipe.id} className="rounded-lg border border-border p-3">
                     <div className="flex items-center justify-between mb-2">
                       <span className="font-bold text-sm text-foreground">{equipe.nome}</span>
-                      <button
-                        onClick={() => {
-                          if (todosSelected) {
-                            setSelectedAlunos(prev => prev.filter(id => !membros.find(m => m.id === id)));
-                          } else {
-                            setSelectedAlunos(prev => [...new Set([...prev, ...membros.map(m => m.id)])]);
-                          }
-                        }}
-                        className="text-xs text-primary hover:underline"
-                      >
+                      <button onClick={() => {
+                        if (todosSelected) setSelectedAlunos(prev => prev.filter(id => !membros.find((m: any) => m.id === id)));
+                        else setSelectedAlunos(prev => [...new Set([...prev, ...membros.map((m: any) => m.id)])]);
+                      }} className="text-xs text-primary hover:underline">
                         {todosSelected ? 'Desmarcar todos' : 'Marcar todos'}
                       </button>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                      {membros.map(aluno => (
-                        <label
-                          key={aluno.id}
-                          className={`flex items-center gap-2 rounded-md px-3 py-2 cursor-pointer transition-colors ${selectedAlunos.includes(aluno.id) ? 'bg-primary/15 text-foreground' : 'bg-secondary/50 text-muted-foreground hover:bg-secondary'}`}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={selectedAlunos.includes(aluno.id)}
-                            onChange={() => toggleAluno(aluno.id)}
-                            className="accent-primary"
-                          />
+                      {membros.map((aluno: any) => (
+                        <label key={aluno.id}
+                          className={`flex items-center gap-2 rounded-md px-3 py-2 cursor-pointer transition-colors ${selectedAlunos.includes(aluno.id) ? 'bg-primary/15 text-foreground' : 'bg-secondary/50 text-muted-foreground hover:bg-secondary'}`}>
+                          <input type="checkbox" checked={selectedAlunos.includes(aluno.id)} onChange={() => toggleAluno(aluno.id)} className="accent-primary" />
                           <span className="text-sm">{aluno.nome}</span>
                           <span className="text-xs text-muted-foreground ml-auto">{aluno.classe}</span>
                         </label>
@@ -162,38 +173,48 @@ export default function LancarXP() {
                   </div>
                 );
               })}
+              {/* Alunos without equipe */}
+              {alunosFiltered.filter((a: any) => !a.equipe_id).length > 0 && (
+                <div className="rounded-lg border border-border p-3">
+                  <span className="font-bold text-sm text-foreground mb-2 block">Sem equipe</span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                    {alunosFiltered.filter((a: any) => !a.equipe_id).map((aluno: any) => (
+                      <label key={aluno.id}
+                        className={`flex items-center gap-2 rounded-md px-3 py-2 cursor-pointer transition-colors ${selectedAlunos.includes(aluno.id) ? 'bg-primary/15 text-foreground' : 'bg-secondary/50 text-muted-foreground hover:bg-secondary'}`}>
+                        <input type="checkbox" checked={selectedAlunos.includes(aluno.id)} onChange={() => toggleAluno(aluno.id)} className="accent-primary" />
+                        <span className="text-sm">{aluno.nome}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {equipesFiltered.map(equipe => (
-                <button
-                  key={equipe.id}
-                  onClick={() => toggleEquipe(equipe.id)}
-                  className={`rounded-lg border p-3 text-left transition-all ${selectedEquipes.includes(equipe.id) ? 'border-primary bg-primary/10 glow-primary' : 'border-border bg-secondary hover:border-primary/30'}`}
-                >
-                  <div className="flex items-center gap-2">
-                    {selectedEquipes.includes(equipe.id) && <Check className="w-4 h-4 text-primary" />}
-                    <span className="font-bold text-foreground">{equipe.nome}</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1">{equipe.xpTotal} XP</p>
-                </button>
-              ))}
+              {equipesFiltered.map((equipe: any) => {
+                const xpTotal = calcEquipeXP(equipe.id, lancamentos, lancEquipes, lancAlunos, allAlunos, purchases);
+                return (
+                  <button key={equipe.id} onClick={() => toggleEquipe(equipe.id)}
+                    className={`rounded-lg border p-3 text-left transition-all ${selectedEquipes.includes(equipe.id) ? 'border-primary bg-primary/10 glow-primary' : 'border-border bg-secondary hover:border-primary/30'}`}>
+                    <div className="flex items-center gap-2">
+                      {selectedEquipes.includes(equipe.id) && <Check className="w-4 h-4 text-primary" />}
+                      <span className="font-bold text-foreground">{equipe.nome}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">{xpTotal} XP</p>
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
       )}
 
-      {/* Launch Button */}
       {salaId && atividade && (
-        <button
-          onClick={handleLancar}
-          disabled={launched || (atividade.tipo === 'por_aluno' ? selectedAlunos.length === 0 : selectedEquipes.length === 0)}
+        <button onClick={handleLancar} disabled={launched || (atividade.tipo === 'por_aluno' ? selectedAlunos.length === 0 : selectedEquipes.length === 0)}
           className={`w-full rounded-xl py-4 font-display font-bold text-lg transition-all ${launched
             ? 'bg-primary/30 text-primary animate-xp-gain glow-strong'
-            : 'bg-primary text-primary-foreground hover:glow-strong disabled:opacity-40 disabled:cursor-not-allowed'
-            }`}
-        >
-          {launched ? '✅ XP Lançado!' : `⚡ Lançar ${atividade.xp < 0 ? '' : '+'}${atividade.tipo === 'por_aluno' ? selectedAlunos.length * atividade.xp : selectedEquipes.length * atividade.xp} XP`}
+            : 'bg-primary text-primary-foreground hover:glow-strong disabled:opacity-40 disabled:cursor-not-allowed'}`}>
+          {launched ? '✅ XP Lançado!' : '⚡ Lançar XP'}
         </button>
       )}
     </div>

@@ -1,18 +1,29 @@
 import { useState } from 'react';
-import { mockAlunos, mockEquipes, mockSalas } from '@/data/mockData';
+import { useSalas, useEquipes, useAlunos, useLancamentos, useLancamentoEquipes, useLancamentoAlunos, useShopPurchases, calcEquipeXP, calcAlunoXP } from '@/hooks/useSupabaseData';
 import { CLASSES_INFO, getNivel } from '@/types/game';
 import { GraduationCap, Star, Shield, Unlock } from 'lucide-react';
 
 export default function RankingIndividual() {
-  const [salaId, setSalaId] = useState('s1');
-  const [equipeFilter, setEquipeFilter] = useState('');
+  const { data: salas = [] } = useSalas();
+  const { data: allEquipes = [] } = useEquipes();
+  const { data: allAlunos = [] } = useAlunos();
+  const { data: lancamentos = [] } = useLancamentos();
+  const { data: lancEquipes = [] } = useLancamentoEquipes();
+  const { data: lancAlunos = [] } = useLancamentoAlunos();
+  const { data: purchases = [] } = useShopPurchases();
 
-  let alunos = mockAlunos.filter(a => a.salaId === salaId);
-  if (equipeFilter) alunos = alunos.filter(a => a.equipeId === equipeFilter);
-  alunos = [...alunos].sort((a, b) => b.xpIndividual - a.xpIndividual);
+  const [salaId, setSalaId] = useState('');
+  const [equipeFilter, setEquipeFilter] = useState('');
+  const activeSala = salaId || salas[0]?.id || '';
+
+  let alunos = allAlunos
+    .filter((a: any) => a.sala_id === activeSala)
+    .map((a: any) => ({ ...a, xpIndividual: calcAlunoXP(a.id, lancamentos, lancAlunos) }));
+  if (equipeFilter) alunos = alunos.filter((a: any) => a.equipe_id === equipeFilter);
+  alunos.sort((a: any, b: any) => b.xpIndividual - a.xpIndividual);
 
   const cientistaMes = alunos[0];
-  const equipesFiltered = mockEquipes.filter(e => e.salaId === salaId);
+  const equipesFiltered = allEquipes.filter((e: any) => e.sala_id === activeSala);
 
   return (
     <div className="space-y-6">
@@ -21,22 +32,23 @@ export default function RankingIndividual() {
           <GraduationCap className="w-6 h-6" /> Ranking Individual
         </h1>
         <div className="flex items-center gap-3">
-          <select value={salaId} onChange={e => { setSalaId(e.target.value); setEquipeFilter(''); }} className="bg-secondary text-secondary-foreground rounded-lg px-3 py-2 text-sm border border-border font-mono">
-            {mockSalas.map(s => <option key={s.id} value={s.id}>{s.nome}</option>)}
+          <select value={activeSala} onChange={e => { setSalaId(e.target.value); setEquipeFilter(''); }} className="bg-secondary text-secondary-foreground rounded-lg px-3 py-2 text-sm border border-border font-mono">
+            {salas.map((s: any) => <option key={s.id} value={s.id}>{s.nome}</option>)}
           </select>
           <select value={equipeFilter} onChange={e => setEquipeFilter(e.target.value)} className="bg-secondary text-secondary-foreground rounded-lg px-3 py-2 text-sm border border-border font-mono">
             <option value="">Todas equipes</option>
-            {equipesFiltered.map(eq => <option key={eq.id} value={eq.id}>{eq.nome}</option>)}
+            {equipesFiltered.map((eq: any) => <option key={eq.id} value={eq.id}>{eq.nome}</option>)}
           </select>
         </div>
       </div>
 
       <div className="space-y-2">
-        {alunos.map((aluno, idx) => {
-          const equipe = mockEquipes.find(e => e.id === aluno.equipeId);
-          const nivelEquipe = equipe ? getNivel(equipe.xpTotal) : null;
-          const classeInfo = CLASSES_INFO[aluno.classe];
-          const poderDesbloqueado = nivelEquipe && nivelEquipe.nivel >= classeInfo.desbloqueiaNivel;
+        {alunos.map((aluno: any, idx: number) => {
+          const equipe = allEquipes.find((e: any) => e.id === aluno.equipe_id);
+          const equipeXP = equipe ? calcEquipeXP(equipe.id, lancamentos, lancEquipes, lancAlunos, allAlunos, purchases) : 0;
+          const nivelEquipe = getNivel(equipeXP);
+          const classeInfo = CLASSES_INFO[aluno.classe as keyof typeof CLASSES_INFO];
+          const poderDesbloqueado = classeInfo && nivelEquipe.nivel >= classeInfo.desbloqueiaNivel;
           const isCientista = cientistaMes?.id === aluno.id;
 
           return (
@@ -50,14 +62,14 @@ export default function RankingIndividual() {
                   {isCientista && <Star className="w-4 h-4 text-level-6 shrink-0" />}
                 </div>
                 <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
-                  <span>{equipe?.nome}</span>
+                  <span>{equipe?.nome || 'Sem equipe'}</span>
                   <span>•</span>
                   <span>{aluno.classe}</span>
                   <span>•</span>
                   {poderDesbloqueado ? (
                     <span className="text-primary flex items-center gap-1"><Unlock className="w-3 h-3" /> Poder ativo</span>
                   ) : (
-                    <span className="flex items-center gap-1"><Shield className="w-3 h-3" /> Nv.{classeInfo.desbloqueiaNivel}</span>
+                    <span className="flex items-center gap-1"><Shield className="w-3 h-3" /> Nv.{classeInfo?.desbloqueiaNivel}</span>
                   )}
                 </div>
               </div>
