@@ -71,7 +71,7 @@ const App = () => (
         <AuthProvider>
           <AppRoutes />
         </AuthProvider>
-      </BrowserRouter>
+<BrowserRouter basename="/cienciedu">
     </TooltipProvider>
   </QueryClientProvider>
 );
