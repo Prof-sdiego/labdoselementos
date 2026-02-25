@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Zap, Trophy, Users, GraduationCap, FlaskConical,
   ScrollText, History, Layers, ArrowLeftRight, Monitor, Menu, X, Atom,
-  ShoppingCart, AlertTriangle, LogOut
+  ShoppingCart, AlertTriangle, LogOut, Shield
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
@@ -16,6 +16,7 @@ const navItems = [
   { to: '/salas', label: 'Salas', icon: Layers },
   { to: '/equipes', label: 'Equipes', icon: FlaskConical },
   { to: '/alunos', label: 'Alunos', icon: Users },
+  { to: '/poder-alunos', label: 'Poderes', icon: Shield },
   { to: '/atividades', label: 'Atividades', icon: ScrollText },
   { to: '/historico', label: 'Histórico XP', icon: History },
   { to: '/fases', label: 'Fases', icon: Layers },

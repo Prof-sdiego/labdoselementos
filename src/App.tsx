@@ -18,8 +18,11 @@ import Fases from "@/pages/Fases";
 import Transferencias from "@/pages/Transferencias";
 import Loja from "@/pages/Loja";
 import Ocorrencias from "@/pages/Ocorrencias";
+import PoderAlunos from "@/pages/PoderAlunos";
 import TVMode from "@/pages/TVMode";
 import Auth from "@/pages/Auth";
+import AlunoLogin from "@/pages/AlunoLogin";
+import AlunoDashboard from "@/pages/AlunoDashboard";
 import LeaderLogin from "@/pages/LeaderLogin";
 import LeaderDashboard from "@/pages/LeaderDashboard";
 import NotFound from "@/pages/NotFound";
@@ -36,6 +39,8 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 const AppRoutes = () => (
   <Routes>
     <Route path="/auth" element={<Auth />} />
+    <Route path="/aluno-login" element={<AlunoLogin />} />
+    <Route path="/aluno" element={<AlunoDashboard />} />
     <Route path="/lider-login" element={<LeaderLogin />} />
     <Route path="/lider" element={<LeaderDashboard />} />
     <Route path="/tv" element={<ProtectedRoute><TVMode /></ProtectedRoute>} />
@@ -52,6 +57,7 @@ const AppRoutes = () => (
     <Route path="/transferencias" element={<ProtectedRoute><AppLayout><Transferencias /></AppLayout></ProtectedRoute>} />
     <Route path="/loja" element={<ProtectedRoute><AppLayout><Loja /></AppLayout></ProtectedRoute>} />
     <Route path="/ocorrencias" element={<ProtectedRoute><AppLayout><Ocorrencias /></AppLayout></ProtectedRoute>} />
+    <Route path="/poder-alunos" element={<ProtectedRoute><AppLayout><PoderAlunos /></AppLayout></ProtectedRoute>} />
     <Route path="*" element={<NotFound />} />
   </Routes>
 );
