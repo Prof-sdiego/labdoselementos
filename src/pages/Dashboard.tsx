@@ -1,5 +1,5 @@
-import { useState } from 'react';
 import { useSalas, useEquipes, useAlunos, useLancamentos, useLancamentoEquipes, useLancamentoAlunos, useShopPurchases, calcEquipeXP, calcAlunoXP } from '@/hooks/useSupabaseData';
+import { useSalaContext } from '@/hooks/useSalaContext';
 import { getNivel } from '@/types/game';
 import { LevelBadge, XPProgressBar } from '@/components/game/LevelBadge';
 import { Trophy, Star, Target, Zap, FlaskConical, Users } from 'lucide-react';
@@ -7,23 +7,19 @@ import { Link } from 'react-router-dom';
 
 export default function Dashboard() {
   const { data: salas = [] } = useSalas();
-  const { data: allEquipes = [] } = useEquipes();
-  const { data: allAlunos = [] } = useAlunos();
+  const { activeSalaId } = useSalaContext();
+  const { data: allEquipes = [] } = useEquipes(activeSalaId || undefined);
+  const { data: allAlunos = [] } = useAlunos(activeSalaId || undefined);
   const { data: lancamentos = [] } = useLancamentos();
   const { data: lancEquipes = [] } = useLancamentoEquipes();
   const { data: lancAlunos = [] } = useLancamentoAlunos();
   const { data: purchases = [] } = useShopPurchases();
 
-  const [salaFilter, setSalaFilter] = useState('');
-  const activeSala = salaFilter || salas[0]?.id || '';
-
   const equipesFiltered = allEquipes
-    .filter((e: any) => e.sala_id === activeSala)
     .map((e: any) => ({ ...e, xpTotal: calcEquipeXP(e.id, lancamentos, lancEquipes, lancAlunos, allAlunos, purchases) }))
     .sort((a: any, b: any) => b.xpTotal - a.xpTotal);
 
   const alunosFiltered = allAlunos
-    .filter((a: any) => a.sala_id === activeSala)
     .map((a: any) => ({ ...a, xpIndividual: calcAlunoXP(a.id, lancamentos, lancAlunos) }));
 
   const cientistaMes = [...alunosFiltered].sort((a, b) => b.xpIndividual - a.xpIndividual)[0];
@@ -31,15 +27,9 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-display font-bold text-primary text-glow">Dashboard</h1>
-          <p className="text-sm text-muted-foreground">Laboratório dos Elementos — Visão geral</p>
-        </div>
-        <select value={activeSala} onChange={e => setSalaFilter(e.target.value)}
-          className="bg-secondary text-secondary-foreground rounded-lg px-3 py-2 text-sm border border-border font-mono">
-          {salas.map((s: any) => <option key={s.id} value={s.id}>{s.nome}</option>)}
-        </select>
+      <div>
+        <h1 className="text-2xl font-display font-bold text-primary text-glow">Dashboard</h1>
+        <p className="text-sm text-muted-foreground">Laboratório dos Elementos — Visão geral</p>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -89,6 +79,7 @@ export default function Dashboard() {
                 <div className="text-right shrink-0">
                   <p className="text-lg font-display font-bold text-primary">{equipe.xpTotal}</p>
                   <p className="text-xs text-muted-foreground">XP</p>
+                  <p className="text-xs font-bold text-level-6">💎 {equipe.cristais ?? 0}</p>
                 </div>
               </div>
             </div>

@@ -169,7 +169,7 @@ export function calcEquipeXP(
   lancamentoEquipes: any[],
   lancamentoAlunos: any[],
   alunos: any[],
-  purchases: any[]
+  _purchases?: any[] // kept for backwards compat but no longer deducted
 ) {
   // XP from equipe-level lancamentos
   const equipeXPFromLancamentos = lancamentoEquipes
@@ -188,12 +188,8 @@ export function calcEquipeXP(
       return sum + (lanc?.xp_concedido || 0);
     }, 0);
 
-  // Deduct purchases
-  const purchaseXP = purchases
-    .filter(p => p.equipe_id === equipeId)
-    .reduce((sum, p) => sum + (p.xp_gasto || 0), 0);
-
-  return Math.max(0, equipeXPFromLancamentos + alunoXP - purchaseXP);
+  // No longer deduct purchases - crystals are used instead
+  return Math.max(0, equipeXPFromLancamentos + alunoXP);
 }
 
 export function calcAlunoXP(

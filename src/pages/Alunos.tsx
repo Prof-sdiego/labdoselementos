@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useSalas, useAlunos, useEquipes, useLancamentos, useLancamentoAlunos, calcAlunoXP } from '@/hooks/useSupabaseData';
+import { useSalaContext } from '@/hooks/useSalaContext';
 import { supabase } from '@/integrations/supabase/client';
 import { CLASSES_INFO } from '@/types/game';
 import { Users, Plus, Shield, Upload, Download, Pencil, Trash2, Check, X } from 'lucide-react';
@@ -13,9 +14,7 @@ import {
 
 export default function Alunos() {
   const { user } = useAuth();
-  const { data: salas = [] } = useSalas();
-  const [salaId, setSalaId] = useState('');
-  const activeSalaId = salaId || salas[0]?.id || '';
+  const { activeSalaId } = useSalaContext();
   const { data: allAlunos = [] } = useAlunos(activeSalaId || undefined);
   const { data: equipes = [] } = useEquipes(activeSalaId || undefined);
   const { data: lancamentos = [] } = useLancamentos();
@@ -111,9 +110,6 @@ export default function Alunos() {
           <Users className="w-6 h-6" /> Alunos
         </h1>
         <div className="flex items-center gap-3 flex-wrap">
-          <select value={activeSalaId} onChange={e => setSalaId(e.target.value)} className="bg-secondary text-secondary-foreground rounded-lg px-3 py-2 text-sm border border-border font-mono">
-            {salas.map((s: any) => <option key={s.id} value={s.id}>{s.nome}</option>)}
-          </select>
           <button onClick={handleDownloadTemplate} className="flex items-center gap-2 rounded-lg bg-secondary text-foreground px-4 py-2 text-sm font-bold hover:bg-secondary/80 transition-colors border border-border">
             <Download className="w-4 h-4" /> Modelo CSV
           </button>
