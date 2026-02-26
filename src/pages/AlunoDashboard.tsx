@@ -3,14 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { getNivel } from '@/types/game';
 import { LevelBadge, XPProgressBar } from '@/components/game/LevelBadge';
-import { Atom, Users, ShoppingCart, AlertTriangle, LogOut, Send } from 'lucide-react';
+import { Atom, Users, ShoppingCart, AlertTriangle, LogOut, Send, Gem, Lock } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function AlunoDashboard() {
   const navigate = useNavigate();
   const [tab, setTab] = useState<'equipe' | 'loja' | 'ocorrencias'>('equipe');
   const [session, setSession] = useState<any>(null);
-  const [shopData, setShopData] = useState<any>({ items: [], purchases: [] });
+  const [shopData, setShopData] = useState<any>({ items: [], purchases: [], cristais: 0 });
   const [ocorrencias, setOcorrencias] = useState<any[]>([]);
   const [novaOcorrencia, setNovaOcorrencia] = useState('');
   const [loading, setLoading] = useState(false);
@@ -54,6 +54,20 @@ export default function AlunoDashboard() {
     if (tab === 'ocorrencias') loadOcorrencias();
   }, [tab, session]);
 
+  const handlePurchase = async (itemId: string, itemNome: string, preco: number) => {
+    const cristais = shopData.cristais ?? session?.equipe?.cristais ?? 0;
+    if (cristais < preco) {
+      toast.error('Cristais insuficientes!'); return;
+    }
+    setLoading(true);
+    const { data } = await supabase.functions.invoke('leader-api', {
+      body: { action: 'purchase', code: session.code, item_id: itemId }
+    });
+    if (data?.error) toast.error(data.error);
+    else { toast.success(`${itemNome} comprado!`); await refresh(); await loadShop(); }
+    setLoading(false);
+  };
+
   const handleOcorrencia = async () => {
     if (!novaOcorrencia.trim()) return;
     setLoading(true);
@@ -83,6 +97,7 @@ export default function AlunoDashboard() {
         </div>
         <div className="flex items-center gap-3">
           <span className="text-lg font-display font-bold text-primary">{equipe.xp_total} XP</span>
+          <span className="text-sm font-bold text-level-6 flex items-center gap-1"><Gem className="w-4 h-4" />{equipe.cristais ?? 0}</span>
           <button onClick={logout} className="text-muted-foreground hover:text-foreground"><LogOut className="w-4 h-4" /></button>
         </div>
       </header>
@@ -106,6 +121,7 @@ export default function AlunoDashboard() {
             <div className="rounded-xl border border-border bg-card p-5 text-center">
               <LevelBadge xp={equipe.xp_total} size="md" />
               <p className="text-3xl font-display font-bold text-primary mt-2">{equipe.xp_total} XP</p>
+              <p className="text-lg font-bold text-level-6 flex items-center justify-center gap-1 mt-1"><Gem className="w-5 h-5" />{equipe.cristais ?? 0} Cristais</p>
               <XPProgressBar xp={equipe.xp_total} />
             </div>
             <div className="space-y-2">
@@ -124,18 +140,38 @@ export default function AlunoDashboard() {
 
         {tab === 'loja' && (
           <>
-            <p className="text-sm text-muted-foreground">Saldo da equipe: <span className="font-bold text-primary">{equipe.xp_total} XP</span></p>
-            <p className="text-xs text-muted-foreground">Para comprar itens, peça ao líder da equipe.</p>
+            <p className="text-sm text-muted-foreground">
+              Cristais disponíveis: <span className="font-bold text-level-6">{shopData.cristais ?? equipe.cristais ?? 0} 💎</span>
+              {' '}• XP da equipe: <span className="font-bold text-primary">{equipe.xp_total}</span>
+            </p>
             <div className="space-y-3">
-              {shopData.items?.map((item: any) => (
-                <div key={item.id} className="rounded-xl border border-border bg-card p-4 flex items-center justify-between">
-                  <div>
-                    <h3 className="font-bold text-foreground">{item.nome}</h3>
-                    <p className="text-xs text-muted-foreground">{item.descricao} • Estoque: {item.estoque}</p>
+              {shopData.items?.map((item: any) => {
+                const locked = item.xp_necessario > 0 && equipe.xp_total < item.xp_necessario;
+                const cristais = shopData.cristais ?? equipe.cristais ?? 0;
+                return (
+                  <div key={item.id} className={`rounded-xl border bg-card p-4 ${locked ? 'border-muted opacity-60' : 'border-border'}`}>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="font-bold text-foreground flex items-center gap-2">
+                          {locked && <Lock className="w-4 h-4 text-muted-foreground" />}
+                          {item.nome}
+                        </h3>
+                        <p className="text-xs text-muted-foreground">{item.descricao} • Estoque: {item.estoque}</p>
+                        {locked && <p className="text-xs text-destructive mt-1">Necessário {item.xp_necessario} XP para desbloquear</p>}
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="font-display font-bold text-level-6 flex items-center gap-1"><Gem className="w-4 h-4" />{item.preco_xp}</span>
+                        {!locked && (
+                          <button onClick={() => handlePurchase(item.id, item.nome, item.preco_xp)} disabled={loading || cristais < item.preco_xp}
+                            className="rounded-lg bg-primary text-primary-foreground px-3 py-1.5 text-xs font-bold disabled:opacity-30">
+                            Comprar
+                          </button>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                  <span className="font-display font-bold text-primary">{item.preco_xp} XP</span>
-                </div>
-              ))}
+                );
+              })}
               {(!shopData.items || shopData.items.length === 0) && (
                 <p className="text-center text-muted-foreground py-8">Nenhum item disponível na loja.</p>
               )}

@@ -4,7 +4,9 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
+import { SalaProvider, useSalaContext } from "@/hooks/useSalaContext";
 import AppLayout from "@/components/layout/AppLayout";
+import SalaSelector from "@/pages/SalaSelector";
 import Dashboard from "@/pages/Dashboard";
 import LancarXP from "@/pages/LancarXP";
 import RankingEquipes from "@/pages/RankingEquipes";
@@ -36,6 +38,12 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function SalaGate({ children }: { children: React.ReactNode }) {
+  const { salaSelected } = useSalaContext();
+  if (!salaSelected) return <SalaSelector />;
+  return <>{children}</>;
+}
+
 const AppRoutes = () => (
   <Routes>
     <Route path="/auth" element={<Auth />} />
@@ -44,20 +52,20 @@ const AppRoutes = () => (
     <Route path="/lider-login" element={<LeaderLogin />} />
     <Route path="/lider" element={<LeaderDashboard />} />
     <Route path="/tv" element={<ProtectedRoute><TVMode /></ProtectedRoute>} />
-    <Route path="/" element={<ProtectedRoute><AppLayout><Dashboard /></AppLayout></ProtectedRoute>} />
-    <Route path="/lancar-xp" element={<ProtectedRoute><AppLayout><LancarXP /></AppLayout></ProtectedRoute>} />
-    <Route path="/ranking-equipes" element={<ProtectedRoute><AppLayout><RankingEquipes /></AppLayout></ProtectedRoute>} />
-    <Route path="/ranking-individual" element={<ProtectedRoute><AppLayout><RankingIndividual /></AppLayout></ProtectedRoute>} />
     <Route path="/salas" element={<ProtectedRoute><AppLayout><Salas /></AppLayout></ProtectedRoute>} />
-    <Route path="/equipes" element={<ProtectedRoute><AppLayout><Equipes /></AppLayout></ProtectedRoute>} />
-    <Route path="/alunos" element={<ProtectedRoute><AppLayout><Alunos /></AppLayout></ProtectedRoute>} />
+    <Route path="/" element={<ProtectedRoute><SalaGate><AppLayout><Dashboard /></AppLayout></SalaGate></ProtectedRoute>} />
+    <Route path="/lancar-xp" element={<ProtectedRoute><SalaGate><AppLayout><LancarXP /></AppLayout></SalaGate></ProtectedRoute>} />
+    <Route path="/ranking-equipes" element={<ProtectedRoute><SalaGate><AppLayout><RankingEquipes /></AppLayout></SalaGate></ProtectedRoute>} />
+    <Route path="/ranking-individual" element={<ProtectedRoute><SalaGate><AppLayout><RankingIndividual /></AppLayout></SalaGate></ProtectedRoute>} />
+    <Route path="/equipes" element={<ProtectedRoute><SalaGate><AppLayout><Equipes /></AppLayout></SalaGate></ProtectedRoute>} />
+    <Route path="/alunos" element={<ProtectedRoute><SalaGate><AppLayout><Alunos /></AppLayout></SalaGate></ProtectedRoute>} />
     <Route path="/atividades" element={<ProtectedRoute><AppLayout><Atividades /></AppLayout></ProtectedRoute>} />
-    <Route path="/historico" element={<ProtectedRoute><AppLayout><Historico /></AppLayout></ProtectedRoute>} />
+    <Route path="/historico" element={<ProtectedRoute><SalaGate><AppLayout><Historico /></AppLayout></SalaGate></ProtectedRoute>} />
     <Route path="/fases" element={<ProtectedRoute><AppLayout><Fases /></AppLayout></ProtectedRoute>} />
-    <Route path="/transferencias" element={<ProtectedRoute><AppLayout><Transferencias /></AppLayout></ProtectedRoute>} />
+    <Route path="/transferencias" element={<ProtectedRoute><SalaGate><AppLayout><Transferencias /></AppLayout></SalaGate></ProtectedRoute>} />
     <Route path="/loja" element={<ProtectedRoute><AppLayout><Loja /></AppLayout></ProtectedRoute>} />
-    <Route path="/ocorrencias" element={<ProtectedRoute><AppLayout><Ocorrencias /></AppLayout></ProtectedRoute>} />
-    <Route path="/poder-alunos" element={<ProtectedRoute><AppLayout><PoderAlunos /></AppLayout></ProtectedRoute>} />
+    <Route path="/ocorrencias" element={<ProtectedRoute><SalaGate><AppLayout><Ocorrencias /></AppLayout></SalaGate></ProtectedRoute>} />
+    <Route path="/poder-alunos" element={<ProtectedRoute><SalaGate><AppLayout><PoderAlunos /></AppLayout></SalaGate></ProtectedRoute>} />
     <Route path="*" element={<NotFound />} />
   </Routes>
 );
@@ -67,11 +75,13 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-<BrowserRouter basename="/labdoselementos">
+      <BrowserRouter>
         <AuthProvider>
-          <AppRoutes />
+          <SalaProvider>
+            <AppRoutes />
+          </SalaProvider>
         </AuthProvider>
-<BrowserRouter basename="/cienciedu">
+      </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
 );

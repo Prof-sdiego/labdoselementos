@@ -141,6 +141,7 @@ export type Database = {
       equipes: {
         Row: {
           created_at: string | null
+          cristais: number
           id: string
           leader_code: string | null
           nome: string
@@ -149,6 +150,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string | null
+          cristais?: number
           id?: string
           leader_code?: string | null
           nome: string
@@ -157,6 +159,7 @@ export type Database = {
         }
         Update: {
           created_at?: string | null
+          cristais?: number
           id?: string
           leader_code?: string | null
           nome?: string
@@ -419,6 +422,7 @@ export type Database = {
           nome: string
           preco_xp: number
           user_id: string
+          xp_necessario: number
         }
         Insert: {
           ativo?: boolean | null
@@ -429,6 +433,7 @@ export type Database = {
           nome: string
           preco_xp?: number
           user_id: string
+          xp_necessario?: number
         }
         Update: {
           ativo?: boolean | null
@@ -439,33 +444,34 @@ export type Database = {
           nome?: string
           preco_xp?: number
           user_id?: string
+          xp_necessario?: number
         }
         Relationships: []
       }
       shop_purchases: {
         Row: {
+          cristais_gasto: number
           data: string | null
           equipe_id: string
           id: string
           item_id: string
           user_id: string
-          xp_gasto: number
         }
         Insert: {
+          cristais_gasto?: number
           data?: string | null
           equipe_id: string
           id?: string
           item_id: string
           user_id: string
-          xp_gasto?: number
         }
         Update: {
+          cristais_gasto?: number
           data?: string | null
           equipe_id?: string
           id?: string
           item_id?: string
           user_id?: string
-          xp_gasto?: number
         }
         Relationships: [
           {

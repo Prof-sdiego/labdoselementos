@@ -1,24 +1,22 @@
 import { useState } from 'react';
 import { useSalas, useEquipes, useAlunos, useLancamentos, useLancamentoEquipes, useLancamentoAlunos, useShopPurchases, calcEquipeXP, calcAlunoXP } from '@/hooks/useSupabaseData';
+import { useSalaContext } from '@/hooks/useSalaContext';
 import { LevelBadge, XPProgressBar } from '@/components/game/LevelBadge';
 import { Trophy, Monitor } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export default function RankingEquipes() {
-  const { data: salas = [] } = useSalas();
-  const { data: allEquipes = [] } = useEquipes();
-  const { data: allAlunos = [] } = useAlunos();
+  const { activeSalaId } = useSalaContext();
+  const { data: allEquipes = [] } = useEquipes(activeSalaId || undefined);
+  const { data: allAlunos = [] } = useAlunos(activeSalaId || undefined);
   const { data: lancamentos = [] } = useLancamentos();
   const { data: lancEquipes = [] } = useLancamentoEquipes();
   const { data: lancAlunos = [] } = useLancamentoAlunos();
   const { data: purchases = [] } = useShopPurchases();
 
-  const [salaId, setSalaId] = useState('');
   const [detailEquipe, setDetailEquipe] = useState<string | null>(null);
-  const activeSala = salaId || salas[0]?.id || '';
 
   const equipes = allEquipes
-    .filter((e: any) => e.sala_id === activeSala)
     .map((e: any) => ({ ...e, xpTotal: calcEquipeXP(e.id, lancamentos, lancEquipes, lancAlunos, allAlunos, purchases) }))
     .sort((a: any, b: any) => b.xpTotal - a.xpTotal);
 
@@ -28,14 +26,9 @@ export default function RankingEquipes() {
         <h1 className="text-2xl font-display font-bold text-primary text-glow flex items-center gap-2">
           <Trophy className="w-6 h-6" /> Ranking das Equipes
         </h1>
-        <div className="flex items-center gap-3">
-          <select value={activeSala} onChange={e => setSalaId(e.target.value)} className="bg-secondary text-secondary-foreground rounded-lg px-3 py-2 text-sm border border-border font-mono">
-            {salas.map((s: any) => <option key={s.id} value={s.id}>{s.nome}</option>)}
-          </select>
-          <Link to="/tv" className="flex items-center gap-2 rounded-lg bg-primary/15 text-primary px-3 py-2 text-sm font-bold hover:bg-primary/25 transition-colors">
-            <Monitor className="w-4 h-4" /> Modo TV
-          </Link>
-        </div>
+        <Link to="/tv" className="flex items-center gap-2 rounded-lg bg-primary/15 text-primary px-3 py-2 text-sm font-bold hover:bg-primary/25 transition-colors">
+          <Monitor className="w-4 h-4" /> Modo TV
+        </Link>
       </div>
 
       <div className="space-y-3">

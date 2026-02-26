@@ -1,29 +1,27 @@
 import { useState } from 'react';
-import { useSalas, useEquipes, useAlunos, useLancamentos, useLancamentoEquipes, useLancamentoAlunos, useShopPurchases, calcEquipeXP, calcAlunoXP } from '@/hooks/useSupabaseData';
+import { useEquipes, useAlunos, useLancamentos, useLancamentoEquipes, useLancamentoAlunos, useShopPurchases, calcEquipeXP, calcAlunoXP } from '@/hooks/useSupabaseData';
+import { useSalaContext } from '@/hooks/useSalaContext';
 import { CLASSES_INFO, getNivel } from '@/types/game';
 import { GraduationCap, Star, Shield, Unlock } from 'lucide-react';
 
 export default function RankingIndividual() {
-  const { data: salas = [] } = useSalas();
-  const { data: allEquipes = [] } = useEquipes();
-  const { data: allAlunos = [] } = useAlunos();
+  const { activeSalaId } = useSalaContext();
+  const { data: allEquipes = [] } = useEquipes(activeSalaId || undefined);
+  const { data: allAlunos = [] } = useAlunos(activeSalaId || undefined);
   const { data: lancamentos = [] } = useLancamentos();
   const { data: lancEquipes = [] } = useLancamentoEquipes();
   const { data: lancAlunos = [] } = useLancamentoAlunos();
   const { data: purchases = [] } = useShopPurchases();
 
-  const [salaId, setSalaId] = useState('');
   const [equipeFilter, setEquipeFilter] = useState('');
-  const activeSala = salaId || salas[0]?.id || '';
 
   let alunos = allAlunos
-    .filter((a: any) => a.sala_id === activeSala)
     .map((a: any) => ({ ...a, xpIndividual: calcAlunoXP(a.id, lancamentos, lancAlunos) }));
   if (equipeFilter) alunos = alunos.filter((a: any) => a.equipe_id === equipeFilter);
   alunos.sort((a: any, b: any) => b.xpIndividual - a.xpIndividual);
 
   const cientistaMes = alunos[0];
-  const equipesFiltered = allEquipes.filter((e: any) => e.sala_id === activeSala);
+  const equipesFiltered = allEquipes;
 
   return (
     <div className="space-y-6">
@@ -31,15 +29,10 @@ export default function RankingIndividual() {
         <h1 className="text-2xl font-display font-bold text-primary text-glow flex items-center gap-2">
           <GraduationCap className="w-6 h-6" /> Ranking Individual
         </h1>
-        <div className="flex items-center gap-3">
-          <select value={activeSala} onChange={e => { setSalaId(e.target.value); setEquipeFilter(''); }} className="bg-secondary text-secondary-foreground rounded-lg px-3 py-2 text-sm border border-border font-mono">
-            {salas.map((s: any) => <option key={s.id} value={s.id}>{s.nome}</option>)}
-          </select>
-          <select value={equipeFilter} onChange={e => setEquipeFilter(e.target.value)} className="bg-secondary text-secondary-foreground rounded-lg px-3 py-2 text-sm border border-border font-mono">
-            <option value="">Todas equipes</option>
-            {equipesFiltered.map((eq: any) => <option key={eq.id} value={eq.id}>{eq.nome}</option>)}
-          </select>
-        </div>
+        <select value={equipeFilter} onChange={e => setEquipeFilter(e.target.value)} className="bg-secondary text-secondary-foreground rounded-lg px-3 py-2 text-sm border border-border font-mono">
+          <option value="">Todas equipes</option>
+          {equipesFiltered.map((eq: any) => <option key={eq.id} value={eq.id}>{eq.nome}</option>)}
+        </select>
       </div>
 
       <div className="space-y-2">

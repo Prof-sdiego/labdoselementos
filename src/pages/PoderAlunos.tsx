@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { useSalas, useAlunos, useEquipes } from '@/hooks/useSupabaseData';
+import { useAlunos, useEquipes } from '@/hooks/useSupabaseData';
+import { useSalaContext } from '@/hooks/useSalaContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Shield, Check } from 'lucide-react';
 import { toast } from 'sonner';
@@ -8,9 +9,7 @@ import { useQueryClient } from '@tanstack/react-query';
 
 export default function PoderAlunos() {
   const { user } = useAuth();
-  const { data: salas = [] } = useSalas();
-  const [salaId, setSalaId] = useState('');
-  const activeSalaId = salaId || salas[0]?.id || '';
+  const { activeSalaId } = useSalaContext();
   const { data: alunos = [] } = useAlunos(activeSalaId || undefined);
   const { data: equipes = [] } = useEquipes(activeSalaId || undefined);
   const qc = useQueryClient();
@@ -47,9 +46,6 @@ export default function PoderAlunos() {
           <Shield className="w-6 h-6" /> Controle de Poderes
         </h1>
         <div className="flex items-center gap-3 flex-wrap">
-          <select value={activeSalaId} onChange={e => setSalaId(e.target.value)} className="bg-secondary text-secondary-foreground rounded-lg px-3 py-2 text-sm border border-border font-mono">
-            {salas.map((s: any) => <option key={s.id} value={s.id}>{s.nome}</option>)}
-          </select>
           <button onClick={() => marcarTodos(true)} className="rounded-lg bg-primary text-primary-foreground px-3 py-2 text-xs font-bold">
             Marcar Todos
           </button>

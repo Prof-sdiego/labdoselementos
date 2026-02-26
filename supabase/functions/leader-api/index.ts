@@ -60,7 +60,7 @@ Deno.serve(async (req) => {
         .in('id', allLancIds.length > 0 ? allLancIds : ['none'])
         .eq('estornado', false);
 
-      // Calculate team XP
+      // Calculate team XP (no longer deduct purchases)
       const equipeXP = (lancEquipes || []).reduce((sum, le) => {
         const lanc = lancamentos?.find(l => l.id === le.lancamento_id);
         return sum + (lanc?.xp_concedido || 0);
@@ -71,13 +71,7 @@ Deno.serve(async (req) => {
         return sum + (lanc?.xp_concedido || 0);
       }, 0);
 
-      const { data: purchases } = await supabase
-        .from('shop_purchases')
-        .select('xp_gasto')
-        .eq('equipe_id', equipe.id);
-
-      const purchaseTotal = (purchases || []).reduce((s, p) => s + p.xp_gasto, 0);
-      const totalXP = Math.max(0, equipeXP + alunoXP - purchaseTotal);
+      const totalXP = Math.max(0, equipeXP + alunoXP);
 
       // Calculate individual XP
       const membrosWithXP = (membros || []).map(m => {
@@ -120,7 +114,7 @@ Deno.serve(async (req) => {
         .eq('equipe_id', equipe.id)
         .order('data', { ascending: false });
 
-      return new Response(JSON.stringify({ items, purchases }), {
+      return new Response(JSON.stringify({ items, purchases, cristais: equipe.cristais ?? 0 }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
@@ -139,16 +133,43 @@ Deno.serve(async (req) => {
         });
       }
 
+      // Check XP requirement - refetch equipe for fresh XP calc
+      // We need to recalculate XP to check unlock
+      const { data: lancEquipes2 } = await supabase.from('lancamento_equipes').select('lancamento_id').eq('equipe_id', equipe.id);
+      const { data: membros2 } = await supabase.from('alunos').select('id').eq('equipe_id', equipe.id);
+      const membroIds2 = membros2?.map(m => m.id) || [];
+      const { data: lancAlunos2 } = await supabase.from('lancamento_alunos').select('lancamento_id').in('aluno_id', membroIds2.length > 0 ? membroIds2 : ['none']);
+      const allIds2 = [...new Set([...(lancEquipes2?.map(le => le.lancamento_id) || []), ...(lancAlunos2?.map(la => la.lancamento_id) || [])])];
+      const { data: lancs2 } = await supabase.from('lancamentos_xp').select('xp_concedido').in('id', allIds2.length > 0 ? allIds2 : ['none']).eq('estornado', false);
+      const currentXP = (lancs2 || []).reduce((s, l) => s + (l.xp_concedido || 0), 0);
+
+      if (item.xp_necessario && currentXP < item.xp_necessario) {
+        return new Response(JSON.stringify({ error: `XP insuficiente para desbloquear. Necessário: ${item.xp_necessario} XP` }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      // Check crystals
+      // Refetch equipe for fresh cristais
+      const { data: freshEquipe } = await supabase.from('equipes').select('cristais').eq('id', equipe.id).single();
+      const cristais = freshEquipe?.cristais ?? 0;
+      if (cristais < item.preco_xp) {
+        return new Response(JSON.stringify({ error: `Cristais insuficientes. Necessário: ${item.preco_xp}` }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
       // Insert purchase
       await supabase.from('shop_purchases').insert({
         user_id: equipe.user_id,
         item_id,
         equipe_id: equipe.id,
-        xp_gasto: item.preco_xp
+        cristais_gasto: item.preco_xp
       });
 
-      // Decrement stock
+      // Decrement stock and crystals
       await supabase.from('shop_items').update({ estoque: item.estoque - 1 }).eq('id', item_id);
+      await supabase.from('equipes').update({ cristais: cristais - item.preco_xp }).eq('id', equipe.id);
 
       return new Response(JSON.stringify({ success: true }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -190,7 +211,7 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ error: 'Ação desconhecida' }), {
       status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
-  } catch (err) {
+  } catch (err: any) {
     return new Response(JSON.stringify({ error: err.message }), {
       status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });

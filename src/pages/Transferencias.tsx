@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { useSalas, useEquipes, useAlunos, useTransferencias } from '@/hooks/useSupabaseData';
+import { useSalaContext } from '@/hooks/useSalaContext';
+import { useEquipes, useAlunos, useTransferencias } from '@/hooks/useSupabaseData';
 import { supabase } from '@/integrations/supabase/client';
 import { ArrowLeftRight } from 'lucide-react';
 import { toast } from 'sonner';
@@ -8,11 +9,9 @@ import { useQueryClient } from '@tanstack/react-query';
 
 export default function Transferencias() {
   const { user } = useAuth();
-  const { data: salas = [] } = useSalas();
-  const [salaId, setSalaId] = useState('');
-  const activeSala = salaId || salas[0]?.id || '';
-  const { data: equipes = [] } = useEquipes(activeSala || undefined);
-  const { data: allAlunos = [] } = useAlunos(activeSala || undefined);
+  const { activeSalaId } = useSalaContext();
+  const { data: equipes = [] } = useEquipes(activeSalaId || undefined);
+  const { data: allAlunos = [] } = useAlunos(activeSalaId || undefined);
   const { data: transferencias = [] } = useTransferencias();
   const qc = useQueryClient();
 
@@ -21,7 +20,7 @@ export default function Transferencias() {
 
   const handleTransferir = async () => {
     if (!transferindo || !equipeDestinoId || !user) return;
-    // Update aluno's equipe
+    // Update aluno's equipe (XP stays with old team - aluno enters new team with 0 individual XP contribution)
     await supabase.from('alunos').update({ equipe_id: equipeDestinoId }).eq('id', transferindo.alunoId);
     // Record transfer
     await supabase.from('transferencias').insert({
@@ -30,7 +29,7 @@ export default function Transferencias() {
       equipe_origem_id: transferindo.equipeOrigemId,
       equipe_destino_id: equipeDestinoId
     });
-    toast.success('Transferência realizada!');
+    toast.success('Transferência realizada! O XP do aluno permanece na equipe anterior.');
     setTransferindo(null); setEquipeDestinoId('');
     qc.invalidateQueries({ queryKey: ['alunos'] });
     qc.invalidateQueries({ queryKey: ['transferencias'] });
@@ -42,9 +41,9 @@ export default function Transferencias() {
         <ArrowLeftRight className="w-6 h-6" /> Transferências
       </h1>
 
-      <select value={activeSala} onChange={e => setSalaId(e.target.value)} className="bg-secondary text-secondary-foreground rounded-lg px-3 py-2 text-sm border border-border font-mono w-full">
-        {salas.map((s: any) => <option key={s.id} value={s.id}>{s.nome}</option>)}
-      </select>
+      <p className="text-xs text-muted-foreground bg-secondary/50 rounded-lg p-3">
+        ⚠️ Ao transferir um aluno, o XP individual dele permanece na equipe de origem. Ele entra na nova equipe zerado.
+      </p>
 
       {transferindo && (
         <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 space-y-3">

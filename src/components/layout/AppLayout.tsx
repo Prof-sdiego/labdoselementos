@@ -3,10 +3,12 @@ import { Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Zap, Trophy, Users, GraduationCap, FlaskConical,
   ScrollText, History, Layers, ArrowLeftRight, Monitor, Menu, X, Atom,
-  ShoppingCart, AlertTriangle, LogOut, Shield
+  ShoppingCart, AlertTriangle, LogOut, Shield, RefreshCw
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
+import { useSalaContext } from '@/hooks/useSalaContext';
+import { useSalas } from '@/hooks/useSupabaseData';
 
 const navItems = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
@@ -30,6 +32,14 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const { signOut } = useAuth();
+  const { activeSalaId, setActiveSalaId } = useSalaContext();
+  const { data: salas = [] } = useSalas();
+  const currentSala = salas.find((s: any) => s.id === activeSalaId);
+
+  const handleChangeSala = () => {
+    localStorage.removeItem('activeSalaId');
+    window.location.href = '/';
+  };
 
   if (location.pathname === '/tv') return <>{children}</>;
 
@@ -55,6 +65,18 @@ export default function AppLayout({ children }: { children: ReactNode }) {
             <X className="w-5 h-5" />
           </button>
         </div>
+
+        {currentSala && (
+          <div className="px-4 py-2 border-b border-sidebar-border flex items-center justify-between">
+            <div className="text-xs">
+              <p className="font-bold text-foreground">{currentSala.nome}</p>
+              <p className="text-muted-foreground">{currentSala.ano_serie}</p>
+            </div>
+            <button onClick={handleChangeSala} title="Mudar turma" className="text-muted-foreground hover:text-primary transition-colors">
+              <RefreshCw className="w-4 h-4" />
+            </button>
+          </div>
+        )}
 
         <nav className="flex-1 overflow-y-auto py-3 px-3 space-y-1">
           {navItems.map(item => {
