@@ -5,12 +5,14 @@ interface SalaContextType {
   activeSalaId: string;
   setActiveSalaId: (id: string) => void;
   salaSelected: boolean;
+  clearSala: () => void;
 }
 
 const SalaContext = createContext<SalaContextType>({
   activeSalaId: '',
   setActiveSalaId: () => {},
   salaSelected: false,
+  clearSala: () => {},
 });
 
 export function SalaProvider({ children }: { children: ReactNode }) {
@@ -32,15 +34,21 @@ export function SalaProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('activeSalaId', id);
   };
 
+  const clearSala = () => {
+    setActiveSalaId('');
+    setSalaSelected(false);
+    localStorage.removeItem('activeSalaId');
+  };
+
   // If stored sala no longer exists, reset
   useEffect(() => {
-    if (salas.length > 0 && activeSalaId && !salas.find((s: any) => s.id === activeSalaId)) {
-      handleSet(salas[0].id);
+    if (salas.length > 0 && activeSalaId && activeSalaId !== '__skip__' && !salas.find((s: any) => s.id === activeSalaId)) {
+      clearSala();
     }
   }, [salas, activeSalaId]);
 
   return (
-    <SalaContext.Provider value={{ activeSalaId, setActiveSalaId: handleSet, salaSelected }}>
+    <SalaContext.Provider value={{ activeSalaId, setActiveSalaId: handleSet, salaSelected, clearSala }}>
       {children}
     </SalaContext.Provider>
   );

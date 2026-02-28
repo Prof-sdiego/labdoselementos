@@ -13,6 +13,7 @@ export default function Auth() {
   const [password, setPassword] = useState('');
   const [nome, setNome] = useState('');
   const [inviteCode, setInviteCode] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-background"><Atom className="w-8 h-8 text-primary animate-spin" /></div>;
@@ -23,7 +24,7 @@ export default function Auth() {
     setSubmitting(true);
     try {
       if (isLogin) {
-        await signIn(email, password);
+        await signIn(email, password, rememberMe);
         toast.success('Login realizado!');
       } else {
         if (inviteCode !== '1026') {
@@ -108,6 +109,15 @@ export default function Auth() {
             className="w-full rounded-lg border border-border bg-secondary px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none" />
           <input type="password" placeholder="Senha" value={password} onChange={e => setPassword(e.target.value)} required minLength={6}
             className="w-full rounded-lg border border-border bg-secondary px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none" />
+          
+          {isLogin && (
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={rememberMe} onChange={e => setRememberMe(e.target.checked)}
+                className="w-4 h-4 rounded border-border text-primary focus:ring-primary" />
+              <span className="text-sm text-muted-foreground">Manter conectado</span>
+            </label>
+          )}
+
           <button type="submit" disabled={submitting}
             className="w-full rounded-lg bg-primary text-primary-foreground py-3 font-bold text-sm hover:glow-primary transition-all disabled:opacity-50">
             {submitting ? 'Aguarde...' : isLogin ? 'Entrar' : 'Criar Conta'}
