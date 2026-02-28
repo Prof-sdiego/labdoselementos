@@ -32,13 +32,12 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const { signOut } = useAuth();
-  const { activeSalaId, setActiveSalaId } = useSalaContext();
+  const { activeSalaId, clearSala } = useSalaContext();
   const { data: salas = [] } = useSalas();
   const currentSala = salas.find((s: any) => s.id === activeSalaId);
 
   const handleChangeSala = () => {
-    localStorage.removeItem('activeSalaId');
-    window.location.href = '/';
+    clearSala();
   };
 
   if (location.pathname === '/tv') return <>{children}</>;

@@ -1,14 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { getNivel } from '@/types/game';
+import { getNivel, CLASSES_INFO, ClasseType } from '@/types/game';
 import { LevelBadge, XPProgressBar } from '@/components/game/LevelBadge';
-import { Atom, Users, ShoppingCart, AlertTriangle, LogOut, Send, Gem, Lock } from 'lucide-react';
+import { Atom, Users, ShoppingCart, AlertTriangle, LogOut, Send, Gem, Lock, Shield, Check, X as XIcon } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function LeaderDashboard() {
   const navigate = useNavigate();
-  const [tab, setTab] = useState<'equipe' | 'loja' | 'ocorrencias'>('equipe');
+  const [tab, setTab] = useState<'equipe' | 'loja' | 'ocorrencias' | 'poderes'>('equipe');
   const [session, setSession] = useState<any>(null);
   const [shopData, setShopData] = useState<any>({ items: [], purchases: [], cristais: 0 });
   const [ocorrencias, setOcorrencias] = useState<any[]>([]);
@@ -83,6 +83,7 @@ export default function LeaderDashboard() {
   if (!session) return null;
 
   const { equipe, membros, sala } = session;
+  const nivel = getNivel(equipe.xp_total);
 
   return (
     <div className="min-h-screen bg-background">
@@ -101,14 +102,15 @@ export default function LeaderDashboard() {
         </div>
       </header>
 
-      <div className="flex border-b border-border">
+      <div className="flex border-b border-border overflow-x-auto">
         {[
           { key: 'equipe', label: 'Equipe', icon: Users },
+          { key: 'poderes', label: 'Poderes', icon: Shield },
           { key: 'loja', label: 'Loja', icon: ShoppingCart },
           { key: 'ocorrencias', label: 'Ocorrências', icon: AlertTriangle },
         ].map(t => (
           <button key={t.key} onClick={() => setTab(t.key as any)}
-            className={`flex-1 py-3 text-sm font-bold flex items-center justify-center gap-2 transition-colors ${tab === t.key ? 'text-primary border-b-2 border-primary' : 'text-muted-foreground'}`}>
+            className={`flex-1 py-3 text-sm font-bold flex items-center justify-center gap-2 transition-colors whitespace-nowrap ${tab === t.key ? 'text-primary border-b-2 border-primary' : 'text-muted-foreground'}`}>
             <t.icon className="w-4 h-4" /> {t.label}
           </button>
         ))}
@@ -133,6 +135,59 @@ export default function LeaderDashboard() {
                   <span className="font-mono font-bold text-primary text-sm">{m.xp_individual} XP</span>
                 </div>
               ))}
+            </div>
+          </>
+        )}
+
+        {tab === 'poderes' && (
+          <>
+            <div className="space-y-4">
+              {(['Pesquisador', 'Comunicador', 'Engenheiro'] as ClasseType[]).map(classe => {
+                const info = CLASSES_INFO[classe];
+                const unlocked = nivel.nivel >= info.desbloqueiaNivel;
+                return (
+                  <div key={classe} className={`rounded-xl border p-4 ${unlocked ? 'border-primary/30 bg-primary/5' : 'border-border bg-card opacity-70'}`}>
+                    <div className="flex items-center gap-2 mb-2">
+                      {unlocked ? <Shield className="w-5 h-5 text-primary" /> : <Lock className="w-5 h-5 text-muted-foreground" />}
+                      <h3 className="font-display font-bold text-foreground">{classe}</h3>
+                      <span className={`text-xs px-2 py-0.5 rounded-full ml-auto ${unlocked ? 'bg-primary/15 text-primary' : 'bg-muted text-muted-foreground'}`}>
+                        {unlocked ? 'Liberado' : `Nível ${info.desbloqueiaNivel}`}
+                      </span>
+                    </div>
+                    <p className="text-sm text-muted-foreground">{info.poder}</p>
+                  </div>
+                );
+              })}
+            </div>
+
+            <h3 className="font-display font-bold text-foreground mt-6">Status dos membros</h3>
+            <div className="space-y-2">
+              {membros.map((m: any) => {
+                const classeInfo = CLASSES_INFO[m.classe as ClasseType];
+                const memberUnlocked = classeInfo && nivel.nivel >= classeInfo.desbloqueiaNivel;
+                return (
+                  <div key={m.id} className="rounded-lg border border-border bg-card p-3 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      {memberUnlocked ? (
+                        m.poder_usado_nesta_fase
+                          ? <XIcon className="w-4 h-4 text-destructive" />
+                          : <Check className="w-4 h-4 text-primary" />
+                      ) : (
+                        <Lock className="w-4 h-4 text-muted-foreground" />
+                      )}
+                      <span className="font-bold text-foreground text-sm">{m.nome}</span>
+                      <span className="text-xs text-muted-foreground">{m.classe}</span>
+                    </div>
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-mono ${
+                      !memberUnlocked ? 'bg-muted text-muted-foreground'
+                        : m.poder_usado_nesta_fase ? 'bg-destructive/15 text-destructive'
+                        : 'bg-primary/15 text-primary'
+                    }`}>
+                      {!memberUnlocked ? 'Bloqueado' : m.poder_usado_nesta_fase ? 'Usado' : 'Disponível'}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           </>
         )}
