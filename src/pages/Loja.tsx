@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { useShopItems, useShopPurchases, useEquipes } from '@/hooks/useSupabaseData';
+import { useShopItems, useShopPurchases } from '@/hooks/useSupabaseData';
 import { supabase } from '@/integrations/supabase/client';
-import { ShoppingCart, Plus, Trash2, Gem } from 'lucide-react';
+import { ShoppingCart, Plus, Trash2, Gem, Pencil, Check, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -18,6 +18,14 @@ export default function Loja() {
   const [estoque, setEstoque] = useState(5);
   const [xpNecessario, setXpNecessario] = useState(0);
 
+  // Edit state
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editNome, setEditNome] = useState('');
+  const [editDescricao, setEditDescricao] = useState('');
+  const [editPreco, setEditPreco] = useState(0);
+  const [editEstoque, setEditEstoque] = useState(0);
+  const [editXpNecessario, setEditXpNecessario] = useState(0);
+
   const handleAdd = async () => {
     if (!nome || !user) return;
     const { error } = await supabase.from('shop_items').insert({
@@ -30,13 +38,41 @@ export default function Loja() {
   };
 
   const handleDelete = async (id: string) => {
-    await supabase.from('shop_items').delete().eq('id', id);
+    const { error } = await supabase.from('shop_purchases').delete().eq('item_id', id);
+    if (error) { toast.error('Erro ao remover compras vinculadas: ' + error.message); return; }
+    const { error: err2 } = await supabase.from('shop_items').delete().eq('id', id);
+    if (err2) { toast.error(err2.message); return; }
     qc.invalidateQueries({ queryKey: ['shop_items'] });
+    qc.invalidateQueries({ queryKey: ['shop_purchases'] });
     toast.success('Item removido');
   };
 
   const handleToggle = async (id: string, ativo: boolean) => {
     await supabase.from('shop_items').update({ ativo: !ativo }).eq('id', id);
+    qc.invalidateQueries({ queryKey: ['shop_items'] });
+  };
+
+  const startEdit = (item: any) => {
+    setEditingId(item.id);
+    setEditNome(item.nome);
+    setEditDescricao(item.descricao || '');
+    setEditPreco(item.preco_xp);
+    setEditEstoque(item.estoque);
+    setEditXpNecessario(item.xp_necessario || 0);
+  };
+
+  const handleEditSave = async () => {
+    if (!editingId || !editNome.trim()) return;
+    const { error } = await supabase.from('shop_items').update({
+      nome: editNome.trim(),
+      descricao: editDescricao,
+      preco_xp: editPreco,
+      estoque: editEstoque,
+      xp_necessario: editXpNecessario,
+    }).eq('id', editingId);
+    if (error) { toast.error(error.message); return; }
+    toast.success('Item atualizado!');
+    setEditingId(null);
     qc.invalidateQueries({ queryKey: ['shop_items'] });
   };
 
@@ -82,6 +118,44 @@ export default function Loja() {
       <div className="space-y-3">
         {items.map((item: any) => {
           const vendidos = purchases.filter((p: any) => p.item_id === item.id).length;
+          const isEditing = editingId === item.id;
+
+          if (isEditing) {
+            return (
+              <div key={item.id} className="rounded-xl border border-primary/30 bg-card p-5 space-y-3">
+                <input value={editNome} onChange={e => setEditNome(e.target.value)}
+                  className="w-full rounded-lg border border-border bg-secondary px-3 py-2 text-sm text-foreground font-bold" />
+                <input value={editDescricao} onChange={e => setEditDescricao(e.target.value)} placeholder="Descrição"
+                  className="w-full rounded-lg border border-border bg-secondary px-3 py-2 text-sm text-foreground" />
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="text-xs text-muted-foreground">Preço (💎)</label>
+                    <input type="number" value={editPreco} onChange={e => setEditPreco(+e.target.value)} min={1}
+                      className="w-full rounded-lg border border-border bg-secondary px-3 py-2 text-sm text-foreground" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">Estoque</label>
+                    <input type="number" value={editEstoque} onChange={e => setEditEstoque(+e.target.value)} min={0}
+                      className="w-full rounded-lg border border-border bg-secondary px-3 py-2 text-sm text-foreground" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">XP necessário</label>
+                    <input type="number" value={editXpNecessario} onChange={e => setEditXpNecessario(+e.target.value)} min={0}
+                      className="w-full rounded-lg border border-border bg-secondary px-3 py-2 text-sm text-foreground" />
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={handleEditSave} className="rounded-lg bg-primary text-primary-foreground px-4 py-2 text-sm font-bold flex items-center gap-1">
+                    <Check className="w-4 h-4" /> Salvar
+                  </button>
+                  <button onClick={() => setEditingId(null)} className="rounded-lg bg-secondary text-foreground px-4 py-2 text-sm flex items-center gap-1">
+                    <X className="w-4 h-4" /> Cancelar
+                  </button>
+                </div>
+              </div>
+            );
+          }
+
           return (
             <div key={item.id} className={`rounded-xl border bg-card p-4 flex items-center justify-between ${item.ativo ? 'border-border' : 'border-destructive/30 opacity-60'}`}>
               <div>
@@ -96,6 +170,9 @@ export default function Loja() {
                 <div className="text-right">
                   <span className="text-xl font-display font-bold text-level-6 flex items-center gap-1"><Gem className="w-4 h-4" />{item.preco_xp}</span>
                 </div>
+                <button onClick={() => startEdit(item)} className="text-muted-foreground hover:text-primary">
+                  <Pencil className="w-4 h-4" />
+                </button>
                 <button onClick={() => handleToggle(item.id, item.ativo)} className="text-xs text-muted-foreground hover:text-foreground">
                   {item.ativo ? 'Desativar' : 'Ativar'}
                 </button>
