@@ -101,12 +101,19 @@ Deno.serve(async (req) => {
     }
 
     if (action === 'get_shop') {
-      const { data: items } = await supabase
+      // Get all active items with stock, then filter by sala
+      const { data: allItems } = await supabase
         .from('shop_items')
         .select('*')
         .eq('user_id', equipe.user_id)
         .eq('ativo', true)
         .gt('estoque', 0);
+
+      // Filter items: show only if sala_ids is null (all salas) or includes the equipe's sala_id
+      const items = (allItems || []).filter((item: any) => {
+        if (!item.sala_ids || item.sala_ids.length === 0) return true;
+        return item.sala_ids.includes(equipe.sala_id);
+      });
 
       const { data: purchases } = await supabase
         .from('shop_purchases')

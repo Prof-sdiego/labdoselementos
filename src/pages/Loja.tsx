@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { useShopItems, useShopPurchases } from '@/hooks/useSupabaseData';
+import { useShopItems, useShopPurchases, useSalas } from '@/hooks/useSupabaseData';
 import { supabase } from '@/integrations/supabase/client';
 import { ShoppingCart, Plus, Trash2, Gem, Pencil, Check, X } from 'lucide-react';
 import { toast } from 'sonner';
@@ -10,6 +10,7 @@ export default function Loja() {
   const { user } = useAuth();
   const { data: items = [], isLoading } = useShopItems();
   const { data: purchases = [] } = useShopPurchases();
+  const { data: salas = [] } = useSalas();
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [nome, setNome] = useState('');
@@ -17,6 +18,7 @@ export default function Loja() {
   const [preco, setPreco] = useState(10);
   const [estoque, setEstoque] = useState(5);
   const [xpNecessario, setXpNecessario] = useState(0);
+  const [selectedSalas, setSelectedSalas] = useState<string[]>([]); // empty = todas
 
   // Edit state
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -25,15 +27,21 @@ export default function Loja() {
   const [editPreco, setEditPreco] = useState(0);
   const [editEstoque, setEditEstoque] = useState(0);
   const [editXpNecessario, setEditXpNecessario] = useState(0);
+  const [editSalas, setEditSalas] = useState<string[]>([]);
+
+  const toggleSala = (id: string, list: string[], setList: (v: string[]) => void) => {
+    setList(list.includes(id) ? list.filter(s => s !== id) : [...list, id]);
+  };
 
   const handleAdd = async () => {
     if (!nome || !user) return;
     const { error } = await supabase.from('shop_items').insert({
-      user_id: user.id, nome, descricao, preco_xp: preco, estoque, xp_necessario: xpNecessario
-    });
+      user_id: user.id, nome, descricao, preco_xp: preco, estoque, xp_necessario: xpNecessario,
+      sala_ids: selectedSalas.length > 0 ? selectedSalas : null
+    } as any);
     if (error) { toast.error(error.message); return; }
     toast.success('Item adicionado!');
-    setShowForm(false); setNome(''); setDescricao(''); setPreco(10); setEstoque(5); setXpNecessario(0);
+    setShowForm(false); setNome(''); setDescricao(''); setPreco(10); setEstoque(5); setXpNecessario(0); setSelectedSalas([]);
     qc.invalidateQueries({ queryKey: ['shop_items'] });
   };
 
@@ -59,6 +67,7 @@ export default function Loja() {
     setEditPreco(item.preco_xp);
     setEditEstoque(item.estoque);
     setEditXpNecessario(item.xp_necessario || 0);
+    setEditSalas(item.sala_ids || []);
   };
 
   const handleEditSave = async () => {
@@ -69,12 +78,33 @@ export default function Loja() {
       preco_xp: editPreco,
       estoque: editEstoque,
       xp_necessario: editXpNecessario,
-    }).eq('id', editingId);
+      sala_ids: editSalas.length > 0 ? editSalas : null,
+    } as any).eq('id', editingId);
     if (error) { toast.error(error.message); return; }
     toast.success('Item atualizado!');
     setEditingId(null);
     qc.invalidateQueries({ queryKey: ['shop_items'] });
   };
+
+  const getSalaNomes = (salaIds: string[] | null) => {
+    if (!salaIds || salaIds.length === 0) return 'Todas as salas';
+    return salaIds.map(id => salas.find((s: any) => s.id === id)?.nome || '?').join(', ');
+  };
+
+  const SalaSelector = ({ selected, onToggle }: { selected: string[]; onToggle: (id: string) => void }) => (
+    <div>
+      <label className="text-xs text-muted-foreground block mb-1">Salas (vazio = todas)</label>
+      <div className="flex flex-wrap gap-2">
+        {salas.map((sala: any) => (
+          <button key={sala.id} type="button" onClick={() => onToggle(sala.id)}
+            className={`text-xs rounded-full px-3 py-1 border transition-colors ${selected.includes(sala.id) ? 'border-primary bg-primary/15 text-primary font-bold' : 'border-border bg-secondary text-muted-foreground hover:border-primary/30'}`}>
+            {sala.nome}
+          </button>
+        ))}
+      </div>
+      {selected.length === 0 && <p className="text-xs text-muted-foreground mt-1">📋 Disponível para todas as salas</p>}
+    </div>
+  );
 
   return (
     <div className="space-y-6">
@@ -110,6 +140,7 @@ export default function Loja() {
                 className="w-full rounded-lg border border-border bg-secondary px-3 py-2 text-sm text-foreground" />
             </div>
           </div>
+          <SalaSelector selected={selectedSalas} onToggle={(id) => toggleSala(id, selectedSalas, setSelectedSalas)} />
           <p className="text-xs text-muted-foreground">XP necessário: mínimo de XP que a equipe precisa ter acumulado para desbloquear este item. 0 = disponível desde o início.</p>
           <button onClick={handleAdd} className="rounded-lg bg-primary text-primary-foreground px-4 py-2 text-sm font-bold">Salvar</button>
         </div>
@@ -144,6 +175,7 @@ export default function Loja() {
                       className="w-full rounded-lg border border-border bg-secondary px-3 py-2 text-sm text-foreground" />
                   </div>
                 </div>
+                <SalaSelector selected={editSalas} onToggle={(id) => toggleSala(id, editSalas, setEditSalas)} />
                 <div className="flex gap-2">
                   <button onClick={handleEditSave} className="rounded-lg bg-primary text-primary-foreground px-4 py-2 text-sm font-bold flex items-center gap-1">
                     <Check className="w-4 h-4" /> Salvar
@@ -164,6 +196,7 @@ export default function Loja() {
                 <p className="text-xs text-muted-foreground mt-1">
                   Vendidos: {vendidos} • Estoque: {item.estoque}
                   {item.xp_necessario > 0 && <span> • XP necessário: {item.xp_necessario}</span>}
+                  {' '}• {getSalaNomes(item.sala_ids)}
                 </p>
               </div>
               <div className="flex items-center gap-3">
