@@ -34,17 +34,39 @@ export default function LancarXP() {
   const handleLancar = async () => {
     if (!salaId || !atividadeId || !user || !atividade) return;
 
+    // Track crystals to add per equipe
+    const cristaisPerEquipe: Record<string, number> = {};
+
+    const addCristais = (equipeId: string, xp: number) => {
+      if (xp > 0) {
+        // 10 cristais a cada 10 XP (1:1 ratio, in multiples of 10)
+        const gained = Math.floor(xp / 10) * 10;
+        if (gained > 0) {
+          cristaisPerEquipe[equipeId] = (cristaisPerEquipe[equipeId] || 0) + gained;
+        }
+      }
+    };
+
     if (atividade.tipo === 'por_aluno') {
-      // Create lancamento for each selected aluno
       const { data: lanc, error } = await supabase.from('lancamentos_xp').insert({
         user_id: user.id, atividade_id: atividadeId, sala_id: salaId, xp_concedido: atividade.xp
       }).select().single();
       if (error) { toast.error(error.message); return; }
 
-      // Link alunos
       await supabase.from('lancamento_alunos').insert(
         selectedAlunos.map(aId => ({ lancamento_id: lanc.id, aluno_id: aId }))
       );
+
+      // Add crystals per equipe based on how many members received XP
+      if (atividade.xp > 0) {
+        for (const equipe of equipesFiltered) {
+          const membros = alunosFiltered.filter((a: any) => a.equipe_id === equipe.id);
+          const count = membros.filter((m: any) => selectedAlunos.includes(m.id)).length;
+          if (count > 0) {
+            addCristais(equipe.id, atividade.xp * count);
+          }
+        }
+      }
 
       // Check bonus: all members of any team completed
       const equipeBonus: string[] = [];
@@ -58,6 +80,7 @@ export default function LancarXP() {
           }).select().single();
           if (bonusLanc) {
             await supabase.from('lancamento_equipes').insert({ lancamento_id: bonusLanc.id, equipe_id: equipe.id });
+            addCristais(equipe.id, 10);
           }
         }
       }
@@ -70,8 +93,22 @@ export default function LancarXP() {
         }).select().single();
         if (lanc) {
           await supabase.from('lancamento_equipes').insert({ lancamento_id: lanc.id, equipe_id: eqId });
+          addCristais(eqId, atividade.xp);
         }
       }
+    }
+
+    // Auto-grant crystals to teams
+    for (const [equipeId, cristais] of Object.entries(cristaisPerEquipe)) {
+      if (cristais > 0) {
+        const equipe = equipesFiltered.find((e: any) => e.id === equipeId);
+        const current = equipe?.cristais ?? 0;
+        await supabase.from('equipes').update({ cristais: current + cristais }).eq('id', equipeId);
+      }
+    }
+    const totalCristaisGanhos = Object.values(cristaisPerEquipe).reduce((s, v) => s + v, 0);
+    if (totalCristaisGanhos > 0) {
+      toast.success(`💎 ${totalCristaisGanhos} cristais distribuídos automaticamente!`);
     }
 
     setLaunched(true);
@@ -79,6 +116,7 @@ export default function LancarXP() {
     qc.invalidateQueries({ queryKey: ['lancamentos'] });
     qc.invalidateQueries({ queryKey: ['lancamento_equipes'] });
     qc.invalidateQueries({ queryKey: ['lancamento_alunos'] });
+    qc.invalidateQueries({ queryKey: ['equipes'] });
 
     setTimeout(() => {
       setLaunched(false);
