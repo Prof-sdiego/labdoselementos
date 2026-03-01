@@ -421,6 +421,7 @@ export type Database = {
           id: string
           nome: string
           preco_xp: number
+          sala_ids: string[] | null
           user_id: string
           xp_necessario: number
         }
@@ -432,6 +433,7 @@ export type Database = {
           id?: string
           nome: string
           preco_xp?: number
+          sala_ids?: string[] | null
           user_id: string
           xp_necessario?: number
         }
@@ -443,6 +445,7 @@ export type Database = {
           id?: string
           nome?: string
           preco_xp?: number
+          sala_ids?: string[] | null
           user_id?: string
           xp_necessario?: number
         }
