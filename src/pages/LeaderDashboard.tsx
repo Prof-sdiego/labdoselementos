@@ -199,7 +199,7 @@ export default function LeaderDashboard() {
               {' '}• XP da equipe: <span className="font-bold text-primary">{equipe.xp_total}</span>
             </p>
             <div className="space-y-3">
-              {shopData.items?.map((item: any) => {
+              {[...(shopData.items || [])].sort((a: any, b: any) => a.preco_xp - b.preco_xp).map((item: any) => {
                 const locked = item.xp_necessario > 0 && equipe.xp_total < item.xp_necessario;
                 const cristais = shopData.cristais ?? equipe.cristais ?? 0;
                 return (
