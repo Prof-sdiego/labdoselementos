@@ -1,14 +1,17 @@
-import { ReactNode, useState } from 'react';
+import { ReactNode, useState, useRef, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Zap, Trophy, Users, GraduationCap, FlaskConical,
   ScrollText, History, Layers, ArrowLeftRight, Monitor, Menu, X, Atom,
-  ShoppingCart, AlertTriangle, LogOut, Shield, RefreshCw
+  ShoppingCart, AlertTriangle, LogOut, Shield, RefreshCw, Bell
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
 import { useSalaContext } from '@/hooks/useSalaContext';
 import { useSalas } from '@/hooks/useSupabaseData';
+import { useNotifications } from '@/hooks/useNotifications';
+import { supabase } from '@/integrations/supabase/client';
+import { useQueryClient } from '@tanstack/react-query';
 
 const navItems = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
@@ -35,6 +38,37 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const { activeSalaId, clearSala } = useSalaContext();
   const { data: salas = [] } = useSalas();
   const currentSala = salas.find((s: any) => s.id === activeSalaId);
+  const { data: notifications = [] } = useNotifications();
+  const qc = useQueryClient();
+
+  const [showNotifs, setShowNotifs] = useState(false);
+  const notifRef = useRef<HTMLDivElement>(null);
+
+  const unreadCount = (notifications as any[]).filter((n: any) => !n.lida).length;
+
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
+        setShowNotifs(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  const markAllRead = async () => {
+    const unread = (notifications as any[]).filter((n: any) => !n.lida);
+    if (unread.length === 0) return;
+    await supabase.from('notifications').update({ lida: true } as any).in('id', unread.map((n: any) => n.id));
+    qc.invalidateQueries({ queryKey: ['notifications'] });
+  };
+
+  const handleBellClick = () => {
+    setShowNotifs(!showNotifs);
+    if (!showNotifs && unreadCount > 0) {
+      markAllRead();
+    }
+  };
 
   const handleChangeSala = () => {
     clearSala();
@@ -107,6 +141,39 @@ export default function AppLayout({ children }: { children: ReactNode }) {
             <Menu className="w-5 h-5" />
           </button>
           <div className="flex-1" />
+          
+          {/* Notifications bell */}
+          <div className="relative" ref={notifRef}>
+            <button onClick={handleBellClick} className="relative text-muted-foreground hover:text-foreground transition-colors">
+              <Bell className="w-5 h-5" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
+            </button>
+
+            {showNotifs && (
+              <div className="absolute right-0 top-10 w-80 max-h-96 overflow-y-auto rounded-xl border border-border bg-card shadow-lg z-50">
+                <div className="px-4 py-3 border-b border-border flex items-center justify-between">
+                  <h3 className="font-display font-bold text-foreground text-sm">Notificações</h3>
+                </div>
+                <div className="divide-y divide-border">
+                  {(notifications as any[]).length === 0 && (
+                    <p className="text-center text-muted-foreground text-sm py-6">Nenhuma notificação</p>
+                  )}
+                  {(notifications as any[]).slice(0, 20).map((n: any) => (
+                    <div key={n.id} className={cn("px-4 py-3 text-sm", !n.lida && "bg-primary/5")}>
+                      <p className="text-foreground">{n.mensagem}</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {new Date(n.created_at).toLocaleDateString('pt-BR')} {new Date(n.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </header>
         <div className="p-4 lg:p-6">
           {children}

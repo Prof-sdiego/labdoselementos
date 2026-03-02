@@ -3,22 +3,39 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { getNivel, CLASSES_INFO, ClasseType } from '@/types/game';
 import { LevelBadge, XPProgressBar } from '@/components/game/LevelBadge';
-import { Atom, Users, ShoppingCart, AlertTriangle, LogOut, Send, Gem, Lock, Shield, Check, X as XIcon } from 'lucide-react';
+import { Atom, Users, ShoppingCart, AlertTriangle, LogOut, Send, Gem, Lock, Shield, Check, X as XIcon, Package } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function AlunoDashboard() {
   const navigate = useNavigate();
-  const [tab, setTab] = useState<'equipe' | 'loja' | 'ocorrencias' | 'poderes'>('equipe');
+  const [tab, setTab] = useState<'equipe' | 'loja' | 'ocorrencias' | 'poderes' | 'adquiridos'>('equipe');
   const [session, setSession] = useState<any>(null);
   const [shopData, setShopData] = useState<any>({ items: [], purchases: [], cristais: 0 });
   const [ocorrencias, setOcorrencias] = useState<any[]>([]);
   const [novaOcorrencia, setNovaOcorrencia] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // Roulette state
+  const [roletaItem, setRoletaItem] = useState<any>(null);
+  const [roletaSpinning, setRoletaSpinning] = useState(false);
+  const [roletaResult, setRoletaResult] = useState<string | null>(null);
+  const [roletaAngle, setRoletaAngle] = useState(0);
+
   useEffect(() => {
     const stored = localStorage.getItem('aluno_session');
     if (!stored) { navigate('/aluno-login'); return; }
     setSession(JSON.parse(stored));
+  }, []);
+
+  // Auto-logout on close if not "remember me"
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (!localStorage.getItem('aluno_remember')) {
+        localStorage.removeItem('aluno_session');
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, []);
 
   const refresh = async () => {
@@ -50,7 +67,7 @@ export default function AlunoDashboard() {
   };
 
   useEffect(() => {
-    if (tab === 'loja') loadShop();
+    if (tab === 'loja' || tab === 'adquiridos') loadShop();
     if (tab === 'ocorrencias') loadOcorrencias();
   }, [tab, session]);
 
@@ -63,8 +80,25 @@ export default function AlunoDashboard() {
     const { data } = await supabase.functions.invoke('leader-api', {
       body: { action: 'purchase', code: session.code, item_id: itemId }
     });
-    if (data?.error) toast.error(data.error);
-    else { toast.success(`${itemNome} comprado!`); await refresh(); await loadShop(); }
+    if (data?.error) { toast.error(data.error); setLoading(false); return; }
+    
+    // Check if item has roulette
+    const item = (shopData.items || []).find((i: any) => i.id === itemId);
+    if (item?.is_roleta && data?.roleta_resultado) {
+      setRoletaItem(item);
+      setRoletaResult(data.roleta_resultado);
+      // Spin animation
+      const opcoes = item.roleta_opcoes || [];
+      const resultIdx = opcoes.findIndex((o: any) => o.nome === data.roleta_resultado);
+      const sliceAngle = 360 / opcoes.length;
+      const targetAngle = 360 * 5 + (360 - (resultIdx * sliceAngle + sliceAngle / 2));
+      setRoletaAngle(targetAngle);
+      setRoletaSpinning(true);
+    } else {
+      toast.success(`${itemNome} comprado!`);
+    }
+    
+    await refresh(); await loadShop();
     setLoading(false);
   };
 
@@ -79,12 +113,17 @@ export default function AlunoDashboard() {
     setLoading(false);
   };
 
-  const logout = () => { localStorage.removeItem('aluno_session'); navigate('/aluno-login'); };
+  const logout = () => { localStorage.removeItem('aluno_session'); localStorage.removeItem('aluno_remember'); navigate('/aluno-login'); };
 
   if (!session) return null;
 
   const { equipe, membros, sala } = session;
   const nivel = getNivel(equipe.xp_total);
+
+  const acquiredItems = (shopData.purchases || []).map((p: any) => {
+    const item = (shopData.items || []).find((i: any) => i.id === p.item_id);
+    return { ...p, item_nome: item?.nome || 'Item', item_descricao: item?.descricao || '' };
+  });
 
   return (
     <div className="min-h-screen bg-background">
@@ -108,6 +147,7 @@ export default function AlunoDashboard() {
           { key: 'equipe', label: 'Equipe', icon: Users },
           { key: 'poderes', label: 'Poderes', icon: Shield },
           { key: 'loja', label: 'Loja', icon: ShoppingCart },
+          { key: 'adquiridos', label: 'Adquiridos', icon: Package },
           { key: 'ocorrencias', label: 'Ocorrências', icon: AlertTriangle },
         ].map(t => (
           <button key={t.key} onClick={() => setTab(t.key as any)}
@@ -210,6 +250,7 @@ export default function AlunoDashboard() {
                         <h3 className="font-bold text-foreground flex items-center gap-2">
                           {locked && <Lock className="w-4 h-4 text-muted-foreground" />}
                           {item.nome}
+                          {item.is_roleta && <span className="text-xs bg-primary/15 text-primary px-2 py-0.5 rounded-full">🎰 Roleta</span>}
                         </h3>
                         <p className="text-xs text-muted-foreground">{item.descricao} • Estoque: {item.estoque}</p>
                         {locked && <p className="text-xs text-destructive mt-1">Necessário {item.xp_necessario} XP para desbloquear</p>}
@@ -232,6 +273,25 @@ export default function AlunoDashboard() {
               )}
             </div>
           </>
+        )}
+
+        {tab === 'adquiridos' && (
+          <div className="space-y-3">
+            <h2 className="font-display font-bold text-foreground">Itens Adquiridos</h2>
+            {acquiredItems.length === 0 && (
+              <p className="text-center text-muted-foreground py-8">Nenhum item adquirido ainda.</p>
+            )}
+            {acquiredItems.map((p: any) => (
+              <div key={p.id} className="rounded-xl border border-border bg-card p-4">
+                <h3 className="font-bold text-foreground text-sm">{p.item_nome}</h3>
+                <p className="text-xs text-muted-foreground">{p.item_descricao}</p>
+                {p.roleta_resultado && (
+                  <p className="text-sm font-bold text-primary mt-1">🎰 Resultado: {p.roleta_resultado}</p>
+                )}
+                <p className="text-xs text-muted-foreground mt-1">{new Date(p.data).toLocaleDateString('pt-BR')}</p>
+              </div>
+            ))}
+          </div>
         )}
 
         {tab === 'ocorrencias' && (
@@ -260,6 +320,53 @@ export default function AlunoDashboard() {
           </>
         )}
       </div>
+
+      {/* Roulette modal */}
+      {roletaItem && roletaSpinning && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/90 backdrop-blur-sm">
+          <div className="text-center space-y-6">
+            <h2 className="text-xl font-display font-bold text-primary">🎰 Roleta — {roletaItem.nome}</h2>
+            <div className="relative w-64 h-64 mx-auto">
+              {/* Simple CSS roulette */}
+              <div className="w-full h-full rounded-full border-4 border-primary overflow-hidden relative"
+                style={{ transform: `rotate(${roletaAngle}deg)`, transition: 'transform 4s cubic-bezier(0.17, 0.67, 0.12, 0.99)' }}>
+                {(roletaItem.roleta_opcoes || []).map((op: any, i: number) => {
+                  const total = roletaItem.roleta_opcoes.length;
+                  const angle = 360 / total;
+                  const colors = ['hsl(var(--primary))', 'hsl(var(--accent))', 'hsl(var(--secondary))', 'hsl(var(--muted))', 'hsl(142 71% 45%)', 'hsl(38 92% 50%)', 'hsl(280 65% 60%)', 'hsl(0 84% 60%)'];
+                  return (
+                    <div key={i} className="absolute inset-0 flex items-center justify-center"
+                      style={{
+                        transform: `rotate(${i * angle}deg)`,
+                        clipPath: `polygon(50% 50%, ${50 + 50 * Math.cos(((-angle/2) * Math.PI) / 180)}% ${50 + 50 * Math.sin(((-angle/2) * Math.PI) / 180)}%, ${50 + 50 * Math.cos(((angle/2) * Math.PI) / 180)}% ${50 + 50 * Math.sin(((angle/2) * Math.PI) / 180)}%)`,
+                        backgroundColor: colors[i % colors.length],
+                      }}>
+                      <span className="text-xs font-bold text-white absolute" style={{ transform: `rotate(${angle/2}deg) translateY(-40px)`, textShadow: '0 1px 2px rgba(0,0,0,0.5)' }}>
+                        {op.nome}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+              {/* Pointer */}
+              <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-2 w-0 h-0 border-l-[10px] border-r-[10px] border-t-[20px] border-l-transparent border-r-transparent border-t-primary z-10" />
+            </div>
+            {roletaResult && (
+              <div>
+                <button onClick={() => {
+                  setRoletaSpinning(false);
+                  setRoletaItem(null);
+                  setRoletaAngle(0);
+                  toast.success(`🎰 Você ganhou: ${roletaResult}!`);
+                  setRoletaResult(null);
+                }} className="rounded-lg bg-primary text-primary-foreground px-6 py-3 font-bold text-sm mt-4">
+                  Ver Resultado
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

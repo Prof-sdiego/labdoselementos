@@ -32,13 +32,11 @@ Deno.serve(async (req) => {
     }
 
     if (action === 'login') {
-      // Get team members and their XP
       const { data: membros } = await supabase
         .from('alunos')
         .select('*')
         .eq('equipe_id', equipe.id);
 
-      // Get lancamentos for XP calculation
       const { data: lancEquipes } = await supabase
         .from('lancamento_equipes')
         .select('lancamento_id')
@@ -60,7 +58,6 @@ Deno.serve(async (req) => {
         .in('id', allLancIds.length > 0 ? allLancIds : ['none'])
         .eq('estornado', false);
 
-      // Calculate team XP (no longer deduct purchases)
       const equipeXP = (lancEquipes || []).reduce((sum, le) => {
         const lanc = lancamentos?.find(l => l.id === le.lancamento_id);
         return sum + (lanc?.xp_concedido || 0);
@@ -73,7 +70,6 @@ Deno.serve(async (req) => {
 
       const totalXP = Math.max(0, equipeXP + alunoXP);
 
-      // Calculate individual XP
       const membrosWithXP = (membros || []).map(m => {
         const mXP = (lancAlunos || [])
           .filter(la => la.aluno_id === m.id)
@@ -84,7 +80,6 @@ Deno.serve(async (req) => {
         return { ...m, xp_individual: mXP };
       });
 
-      // Get sala info
       const { data: sala } = await supabase
         .from('salas')
         .select('nome')
@@ -101,7 +96,6 @@ Deno.serve(async (req) => {
     }
 
     if (action === 'get_shop') {
-      // Get all active items with stock, then filter by sala
       const { data: allItems } = await supabase
         .from('shop_items')
         .select('*')
@@ -109,7 +103,6 @@ Deno.serve(async (req) => {
         .eq('ativo', true)
         .gt('estoque', 0);
 
-      // Filter items: show only if sala_ids is null (all salas) or includes the equipe's sala_id
       const items = (allItems || []).filter((item: any) => {
         if (!item.sala_ids || item.sala_ids.length === 0) return true;
         return item.sala_ids.includes(equipe.sala_id);
@@ -140,8 +133,7 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Check XP requirement - refetch equipe for fresh XP calc
-      // We need to recalculate XP to check unlock
+      // Check XP requirement
       const { data: lancEquipes2 } = await supabase.from('lancamento_equipes').select('lancamento_id').eq('equipe_id', equipe.id);
       const { data: membros2 } = await supabase.from('alunos').select('id').eq('equipe_id', equipe.id);
       const membroIds2 = membros2?.map(m => m.id) || [];
@@ -157,7 +149,6 @@ Deno.serve(async (req) => {
       }
 
       // Check crystals
-      // Refetch equipe for fresh cristais
       const { data: freshEquipe } = await supabase.from('equipes').select('cristais').eq('id', equipe.id).single();
       const cristais = freshEquipe?.cristais ?? 0;
       if (cristais < item.preco_xp) {
@@ -166,19 +157,42 @@ Deno.serve(async (req) => {
         });
       }
 
+      // Handle roulette
+      let roleta_resultado: string | null = null;
+      if (item.is_roleta && item.roleta_opcoes && item.roleta_opcoes.length > 0) {
+        const opcoes = item.roleta_opcoes as { nome: string; peso: number }[];
+        const totalPeso = opcoes.reduce((s: number, o: { peso: number }) => s + (o.peso || 1), 0);
+        let rand = Math.random() * totalPeso;
+        for (const op of opcoes) {
+          rand -= (op.peso || 1);
+          if (rand <= 0) { roleta_resultado = op.nome; break; }
+        }
+        if (!roleta_resultado) roleta_resultado = opcoes[opcoes.length - 1].nome;
+      }
+
       // Insert purchase
       await supabase.from('shop_purchases').insert({
         user_id: equipe.user_id,
         item_id,
         equipe_id: equipe.id,
-        cristais_gasto: item.preco_xp
+        cristais_gasto: item.preco_xp,
+        roleta_resultado,
       });
 
       // Decrement stock and crystals
       await supabase.from('shop_items').update({ estoque: item.estoque - 1 }).eq('id', item_id);
       await supabase.from('equipes').update({ cristais: cristais - item.preco_xp }).eq('id', equipe.id);
 
-      return new Response(JSON.stringify({ success: true }), {
+      // Create notification for professor
+      const { data: salaData } = await supabase.from('salas').select('nome').eq('id', equipe.sala_id).single();
+      await supabase.from('notifications').insert({
+        user_id: equipe.user_id,
+        tipo: 'purchase',
+        mensagem: `🛒 ${equipe.nome} comprou "${item.nome}"${roleta_resultado ? ` (Roleta: ${roleta_resultado})` : ''} — ${salaData?.nome || ''}`,
+        metadata: { equipe_id: equipe.id, item_id, item_nome: item.nome, roleta_resultado }
+      });
+
+      return new Response(JSON.stringify({ success: true, roleta_resultado }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }

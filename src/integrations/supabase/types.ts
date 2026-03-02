@@ -320,6 +320,36 @@ export type Database = {
           },
         ]
       }
+      notifications: {
+        Row: {
+          created_at: string
+          id: string
+          lida: boolean
+          mensagem: string
+          metadata: Json | null
+          tipo: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          lida?: boolean
+          mensagem: string
+          metadata?: Json | null
+          tipo?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          lida?: boolean
+          mensagem?: string
+          metadata?: Json | null
+          tipo?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       ocorrencias: {
         Row: {
           created_at: string | null
@@ -419,8 +449,10 @@ export type Database = {
           descricao: string | null
           estoque: number
           id: string
+          is_roleta: boolean
           nome: string
           preco_xp: number
+          roleta_opcoes: Json | null
           sala_ids: string[] | null
           user_id: string
           xp_necessario: number
@@ -431,8 +463,10 @@ export type Database = {
           descricao?: string | null
           estoque?: number
           id?: string
+          is_roleta?: boolean
           nome: string
           preco_xp?: number
+          roleta_opcoes?: Json | null
           sala_ids?: string[] | null
           user_id: string
           xp_necessario?: number
@@ -443,8 +477,10 @@ export type Database = {
           descricao?: string | null
           estoque?: number
           id?: string
+          is_roleta?: boolean
           nome?: string
           preco_xp?: number
+          roleta_opcoes?: Json | null
           sala_ids?: string[] | null
           user_id?: string
           xp_necessario?: number
@@ -453,27 +489,33 @@ export type Database = {
       }
       shop_purchases: {
         Row: {
+          ciente: boolean
           cristais_gasto: number
           data: string | null
           equipe_id: string
           id: string
           item_id: string
+          roleta_resultado: string | null
           user_id: string
         }
         Insert: {
+          ciente?: boolean
           cristais_gasto?: number
           data?: string | null
           equipe_id: string
           id?: string
           item_id: string
+          roleta_resultado?: string | null
           user_id: string
         }
         Update: {
+          ciente?: boolean
           cristais_gasto?: number
           data?: string | null
           equipe_id?: string
           id?: string
           item_id?: string
+          roleta_resultado?: string | null
           user_id?: string
         }
         Relationships: [
