@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 export default function AlunoLogin() {
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
   const navigate = useNavigate();
 
   const handleLogin = async () => {
@@ -19,7 +20,13 @@ export default function AlunoLogin() {
       if (error) throw error;
       if (data.error) { toast.error(data.error); return; }
       
-      localStorage.setItem('aluno_session', JSON.stringify({ code, equipe: data.equipe, membros: data.membros, sala: data.sala }));
+      const sessionData = { code, equipe: data.equipe, membros: data.membros, sala: data.sala };
+      localStorage.setItem('aluno_session', JSON.stringify(sessionData));
+      if (rememberMe) {
+        localStorage.setItem('aluno_remember', 'true');
+      } else {
+        localStorage.removeItem('aluno_remember');
+      }
       navigate('/aluno');
     } catch (err: any) {
       toast.error('Código inválido ou erro de conexão');
@@ -64,6 +71,12 @@ export default function AlunoLogin() {
             />
           ))}
         </div>
+
+        <label className="flex items-center gap-2 cursor-pointer justify-center">
+          <input type="checkbox" checked={rememberMe} onChange={e => setRememberMe(e.target.checked)}
+            className="w-4 h-4 rounded border-border text-primary focus:ring-primary" />
+          <span className="text-sm text-muted-foreground">Manter conectado</span>
+        </label>
 
         <button onClick={handleLogin} disabled={code.length !== 6 || loading}
           className="w-full rounded-lg bg-primary text-primary-foreground py-3 font-bold text-sm hover:glow-primary transition-all disabled:opacity-50 flex items-center justify-center gap-2">
