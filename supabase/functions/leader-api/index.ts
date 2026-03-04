@@ -68,7 +68,7 @@ Deno.serve(async (req) => {
         return sum + (lanc?.xp_concedido || 0);
       }, 0);
 
-      const totalXP = Math.max(0, equipeXP + alunoXP);
+      const totalXP = Math.max(0, equipeXP + alunoXP + (equipe.xp_acumulado || 0));
 
       const membrosWithXP = (membros || []).map(m => {
         const mXP = (lancAlunos || [])
@@ -140,7 +140,7 @@ Deno.serve(async (req) => {
       const { data: lancAlunos2 } = await supabase.from('lancamento_alunos').select('lancamento_id').in('aluno_id', membroIds2.length > 0 ? membroIds2 : ['none']);
       const allIds2 = [...new Set([...(lancEquipes2?.map(le => le.lancamento_id) || []), ...(lancAlunos2?.map(la => la.lancamento_id) || [])])];
       const { data: lancs2 } = await supabase.from('lancamentos_xp').select('xp_concedido').in('id', allIds2.length > 0 ? allIds2 : ['none']).eq('estornado', false);
-      const currentXP = (lancs2 || []).reduce((s, l) => s + (l.xp_concedido || 0), 0);
+      const currentXP = (lancs2 || []).reduce((s, l) => s + (l.xp_concedido || 0), 0) + (equipe.xp_acumulado || 0);
 
       if (item.xp_necessario && currentXP < item.xp_necessario) {
         return new Response(JSON.stringify({ error: `XP insuficiente para desbloquear. Necessário: ${item.xp_necessario} XP` }), {

@@ -1,6 +1,6 @@
 import { useOcorrencias, useEquipes } from '@/hooks/useSupabaseData';
 import { supabase } from '@/integrations/supabase/client';
-import { AlertTriangle, CheckCircle, Clock } from 'lucide-react';
+import { AlertTriangle, CheckCircle, Clock, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -13,6 +13,12 @@ export default function Ocorrencias() {
     await supabase.from('ocorrencias').update({ status }).eq('id', id);
     qc.invalidateQueries({ queryKey: ['ocorrencias'] });
     toast.success('Status atualizado');
+  };
+
+  const handleDelete = async (id: string) => {
+    await supabase.from('ocorrencias').delete().eq('id', id);
+    qc.invalidateQueries({ queryKey: ['ocorrencias'] });
+    toast.success('Ocorrência excluída');
   };
 
   const statusIcon = (s: string) => {
@@ -43,12 +49,19 @@ export default function Ocorrencias() {
                     </p>
                   </div>
                 </div>
-                <select value={oc.status} onChange={e => updateStatus(oc.id, e.target.value)}
-                  className="bg-secondary text-secondary-foreground rounded-lg px-2 py-1 text-xs border border-border">
-                  <option value="aberta">Aberta</option>
-                  <option value="em_andamento">Em andamento</option>
-                  <option value="resolvida">Resolvida</option>
-                </select>
+                <div className="flex items-center gap-2">
+                  <select value={oc.status} onChange={e => updateStatus(oc.id, e.target.value)}
+                    className="bg-secondary text-secondary-foreground rounded-lg px-2 py-1 text-xs border border-border">
+                    <option value="aberta">Aberta</option>
+                    <option value="em_andamento">Em andamento</option>
+                    <option value="resolvida">Resolvida</option>
+                  </select>
+                  {oc.status === 'resolvida' && (
+                    <button onClick={() => handleDelete(oc.id)} className="text-destructive/70 hover:text-destructive" title="Excluir ocorrência">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           );

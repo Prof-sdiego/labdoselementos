@@ -1,7 +1,7 @@
 import { useAuth } from '@/hooks/useAuth';
 import { useFases } from '@/hooks/useSupabaseData';
 import { supabase } from '@/integrations/supabase/client';
-import { Layers, Plus, Play, Square } from 'lucide-react';
+import { Layers, Plus, Play, Square, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -15,14 +15,11 @@ export default function Fases() {
 
   const handleAdd = async () => {
     if (!nome || !user) return;
-    // Close current active phase
     const faseAtiva = fases.find((f: any) => f.ativa);
     if (faseAtiva) {
       await supabase.from('fases').update({ ativa: false, data_fim: new Date().toISOString() }).eq('id', faseAtiva.id);
     }
-    // Create new phase
     await supabase.from('fases').insert({ user_id: user.id, nome, ativa: true });
-    // Reset poder_usado_nesta_fase for all alunos
     await supabase.from('alunos').update({ poder_usado_nesta_fase: false }).eq('user_id', user.id);
     toast.success('Nova fase iniciada! Poderes resetados.');
     setShowForm(false); setNome('');
@@ -34,6 +31,12 @@ export default function Fases() {
     await supabase.from('fases').update({ ativa: false, data_fim: new Date().toISOString() }).eq('id', id);
     qc.invalidateQueries({ queryKey: ['fases'] });
     toast.success('Fase encerrada');
+  };
+
+  const handleDelete = async (id: string) => {
+    await supabase.from('fases').delete().eq('id', id);
+    qc.invalidateQueries({ queryKey: ['fases'] });
+    toast.success('Fase excluída');
   };
 
   return (
@@ -75,11 +78,17 @@ export default function Fases() {
                   {fase.data_fim && ` • Fim: ${new Date(fase.data_fim).toLocaleDateString('pt-BR')}`}
                 </p>
               </div>
-              {fase.ativa && (
-                <button onClick={() => handleEncerrar(fase.id)} className="flex items-center gap-1 text-sm text-destructive/70 hover:text-destructive transition-colors">
-                  <Square className="w-4 h-4" /> Encerrar
-                </button>
-              )}
+              <div className="flex items-center gap-2">
+                {fase.ativa ? (
+                  <button onClick={() => handleEncerrar(fase.id)} className="flex items-center gap-1 text-sm text-destructive/70 hover:text-destructive transition-colors">
+                    <Square className="w-4 h-4" /> Encerrar
+                  </button>
+                ) : (
+                  <button onClick={() => handleDelete(fase.id)} className="flex items-center gap-1 text-sm text-destructive/70 hover:text-destructive transition-colors">
+                    <Trash2 className="w-4 h-4" /> Excluir
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         ))}

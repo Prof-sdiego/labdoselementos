@@ -138,6 +138,15 @@ export default function Loja() {
     qc.invalidateQueries({ queryKey: ['shop_purchases'] });
   };
 
+  const handleDeleteAllPurchases = async () => {
+    if (!confirm('Tem certeza que deseja excluir todos os registros de vendas?')) return;
+    for (const p of purchases as any[]) {
+      await supabase.from('shop_purchases').delete().eq('id', p.id);
+    }
+    toast.success('Todos os registros de vendas excluídos');
+    qc.invalidateQueries({ queryKey: ['shop_purchases'] });
+  };
+
   const getSalaNomes = (salaIds: string[] | null) => {
     if (!salaIds || salaIds.length === 0) return 'Todas as salas';
     return salaIds.map(id => salas.find((s: any) => s.id === id)?.nome || '?').join(', ');
@@ -370,13 +379,20 @@ export default function Loja() {
 
       {activeTab === 'vendidos' && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-2">
             <p className="text-sm text-muted-foreground">Total de compras: {purchases.length}</p>
-            {(purchases as any[]).some((p: any) => !p.ciente) && (
-              <button onClick={handleCiente} className="flex items-center gap-2 rounded-lg bg-primary text-primary-foreground px-4 py-2 text-sm font-bold">
-                <Check className="w-4 h-4" /> Ciente
-              </button>
-            )}
+            <div className="flex items-center gap-2">
+              {(purchases as any[]).some((p: any) => !p.ciente) && (
+                <button onClick={handleCiente} className="flex items-center gap-2 rounded-lg bg-primary text-primary-foreground px-4 py-2 text-sm font-bold">
+                  <Check className="w-4 h-4" /> Ciente
+                </button>
+              )}
+              {purchases.length > 0 && (
+                <button onClick={handleDeleteAllPurchases} className="flex items-center gap-2 rounded-lg bg-destructive text-destructive-foreground px-4 py-2 text-sm font-bold">
+                  <Trash2 className="w-4 h-4" /> Excluir todos
+                </button>
+              )}
+            </div>
           </div>
           <div className="space-y-2">
             {(purchases as any[]).map((p: any) => {

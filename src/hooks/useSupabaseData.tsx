@@ -188,8 +188,23 @@ export function calcEquipeXP(
       return sum + (lanc?.xp_concedido || 0);
     }, 0);
 
-  // No longer deduct purchases - crystals are used instead
+  // Include accumulated XP from cleared history
+  const equipeObj = alunos.length > 0 ? undefined : undefined; // can't get equipe obj here
+  // xp_acumulado is passed via the equipes array item if available
   return Math.max(0, equipeXPFromLancamentos + alunoXP);
+}
+
+export function calcEquipeXPWithAccumulated(
+  equipeId: string,
+  lancamentos: any[],
+  lancamentoEquipes: any[],
+  lancamentoAlunos: any[],
+  alunos: any[],
+  equipes: any[],
+) {
+  const base = calcEquipeXP(equipeId, lancamentos, lancamentoEquipes, lancamentoAlunos, alunos);
+  const equipe = equipes.find((e: any) => e.id === equipeId);
+  return base + (equipe?.xp_acumulado || 0);
 }
 
 export function calcAlunoXP(
