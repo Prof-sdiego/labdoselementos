@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { useSalas, useEquipes, useAlunos, useTiposAtividade, useLancamentos, useLancamentoEquipes, useLancamentoAlunos, useShopPurchases, calcEquipeXP } from '@/hooks/useSupabaseData';
+import { useSalas, useEquipes, useAlunos, useTiposAtividade, useLancamentos, useLancamentoEquipes, useLancamentoAlunos, useShopPurchases, calcEquipeXPWithAccumulated } from '@/hooks/useSupabaseData';
 import { supabase } from '@/integrations/supabase/client';
-import { Zap, Check, AlertTriangle } from 'lucide-react';
+import { Zap, Check, AlertTriangle, ArrowDownAZ, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import { getNivel } from '@/types/game';
@@ -24,6 +24,7 @@ export default function LancarXP() {
   const [selectedAlunos, setSelectedAlunos] = useState<string[]>([]);
   const [selectedEquipes, setSelectedEquipes] = useState<string[]>([]);
   const [launched, setLaunched] = useState(false);
+  const [sortMode, setSortMode] = useState<'equipe' | 'alpha'>('equipe');
 
   const atividade = atividades.find((a: any) => a.id === atividadeId);
   const equipesFiltered = allEquipes.filter((e: any) => e.sala_id === salaId);
@@ -32,15 +33,13 @@ export default function LancarXP() {
   const toggleAluno = (id: string) => setSelectedAlunos(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
   const toggleEquipe = (id: string) => setSelectedEquipes(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
 
-  // Calculate current XP for an equipe from existing data
   const getEquipeCurrentXP = (equipeId: string) => {
-    return calcEquipeXP(equipeId, lancamentos, lancEquipes, lancAlunos, allAlunos, purchases);
+    return calcEquipeXPWithAccumulated(equipeId, lancamentos, lancEquipes, lancAlunos, allAlunos, allEquipes);
   };
 
   const handleLancar = async () => {
     if (!salaId || !atividadeId || !user || !atividade) return;
 
-    // Capture old levels before XP
     const oldLevels: Record<string, number> = {};
     for (const eq of equipesFiltered) {
       oldLevels[eq.id] = getNivel(getEquipeCurrentXP(eq.id)).nivel;
@@ -52,9 +51,7 @@ export default function LancarXP() {
     const addCristais = (equipeId: string, xp: number) => {
       if (xp > 0) {
         const gained = Math.floor(xp / 10) * 10;
-        if (gained > 0) {
-          cristaisPerEquipe[equipeId] = (cristaisPerEquipe[equipeId] || 0) + gained;
-        }
+        if (gained > 0) cristaisPerEquipe[equipeId] = (cristaisPerEquipe[equipeId] || 0) + gained;
       }
     };
 
@@ -76,10 +73,7 @@ export default function LancarXP() {
         for (const equipe of equipesFiltered) {
           const membros = alunosFiltered.filter((a: any) => a.equipe_id === equipe.id);
           const count = membros.filter((m: any) => selectedAlunos.includes(m.id)).length;
-          if (count > 0) {
-            addCristais(equipe.id, atividade.xp * count);
-            trackXP(equipe.id, atividade.xp * count);
-          }
+          if (count > 0) { addCristais(equipe.id, atividade.xp * count); trackXP(equipe.id, atividade.xp * count); }
         }
       }
 
@@ -94,8 +88,7 @@ export default function LancarXP() {
           }).select().single();
           if (bonusLanc) {
             await supabase.from('lancamento_equipes').insert({ lancamento_id: bonusLanc.id, equipe_id: equipe.id });
-            addCristais(equipe.id, 10);
-            trackXP(equipe.id, 10);
+            addCristais(equipe.id, 10); trackXP(equipe.id, 10);
           }
         }
       }
@@ -107,13 +100,11 @@ export default function LancarXP() {
         }).select().single();
         if (lanc) {
           await supabase.from('lancamento_equipes').insert({ lancamento_id: lanc.id, equipe_id: eqId });
-          addCristais(eqId, atividade.xp);
-          trackXP(eqId, atividade.xp);
+          addCristais(eqId, atividade.xp); trackXP(eqId, atividade.xp);
         }
       }
     }
 
-    // Auto-grant crystals
     for (const [equipeId, cristais] of Object.entries(cristaisPerEquipe)) {
       if (cristais > 0) {
         const equipe = equipesFiltered.find((e: any) => e.id === equipeId);
@@ -122,11 +113,8 @@ export default function LancarXP() {
       }
     }
     const totalCristaisGanhos = Object.values(cristaisPerEquipe).reduce((s, v) => s + v, 0);
-    if (totalCristaisGanhos > 0) {
-      toast.success(`💎 ${totalCristaisGanhos} cristais distribuídos automaticamente!`);
-    }
+    if (totalCristaisGanhos > 0) toast.success(`💎 ${totalCristaisGanhos} cristais distribuídos automaticamente!`);
 
-    // Check level-ups and create notifications
     for (const eq of equipesFiltered) {
       const xpAdded = xpAddedPerEquipe[eq.id] || 0;
       if (xpAdded <= 0) continue;
@@ -134,8 +122,7 @@ export default function LancarXP() {
       const newLevel = getNivel(newXP);
       if (newLevel.nivel > oldLevels[eq.id]) {
         await supabase.from('notifications').insert({
-          user_id: user.id,
-          tipo: 'level_up',
+          user_id: user.id, tipo: 'level_up',
           mensagem: `🎉 ${eq.nome} subiu para o nível ${newLevel.nivel} — ${newLevel.nome}!`,
           metadata: { equipe_id: eq.id, nivel: newLevel.nivel, nome_nivel: newLevel.nome }
         } as any);
@@ -151,11 +138,18 @@ export default function LancarXP() {
     qc.invalidateQueries({ queryKey: ['notifications'] });
 
     setTimeout(() => {
-      setLaunched(false);
-      setSelectedAlunos([]);
-      setSelectedEquipes([]);
-      setAtividadeId('');
+      setLaunched(false); setSelectedAlunos([]); setSelectedEquipes([]); setAtividadeId('');
     }, 2000);
+  };
+
+  // Sort alunos based on mode
+  const getSortedAlunosForEquipe = (membros: any[]) => {
+    if (sortMode === 'alpha') return [...membros].sort((a, b) => a.nome.localeCompare(b.nome));
+    return membros;
+  };
+
+  const getAllAlunosSortedAlpha = () => {
+    return [...alunosFiltered].sort((a: any, b: any) => a.nome.localeCompare(b.nome));
   };
 
   return (
@@ -206,62 +200,93 @@ export default function LancarXP() {
       {/* Step 3: Selection */}
       {salaId && atividade && (
         <div className="rounded-xl border border-border bg-card p-5 space-y-4">
-          <h2 className="font-display font-bold text-foreground">
-            3. {atividade.tipo === 'por_aluno' ? 'Marque os Alunos' : 'Selecione as Equipes'}
-          </h2>
+          <div className="flex items-center justify-between">
+            <h2 className="font-display font-bold text-foreground">
+              3. {atividade.tipo === 'por_aluno' ? 'Marque os Alunos' : 'Selecione as Equipes'}
+            </h2>
+            {atividade.tipo === 'por_aluno' && (
+              <div className="flex rounded-lg bg-secondary p-0.5">
+                <button onClick={() => setSortMode('equipe')}
+                  className={`flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-md transition-colors ${sortMode === 'equipe' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`}>
+                  <Users className="w-3 h-3" /> Por equipes
+                </button>
+                <button onClick={() => setSortMode('alpha')}
+                  className={`flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-md transition-colors ${sortMode === 'alpha' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`}>
+                  <ArrowDownAZ className="w-3 h-3" /> Alfabética
+                </button>
+              </div>
+            )}
+          </div>
           {atividade.tipo === 'por_aluno' ? (
-            <div className="space-y-3">
-              {equipesFiltered.map((equipe: any) => {
-                const membros = alunosFiltered.filter((a: any) => a.equipe_id === equipe.id);
-                const todosSelected = membros.length > 0 && membros.every((m: any) => selectedAlunos.includes(m.id));
-                return (
-                  <div key={equipe.id} className="rounded-lg border border-border p-3">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="font-bold text-sm text-foreground">{equipe.nome}</span>
-                      <button onClick={() => {
-                        if (todosSelected) setSelectedAlunos(prev => prev.filter(id => !membros.find((m: any) => m.id === id)));
-                        else setSelectedAlunos(prev => [...new Set([...prev, ...membros.map((m: any) => m.id)])]);
-                      }} className="text-xs text-primary hover:underline">
-                        {todosSelected ? 'Desmarcar todos' : 'Marcar todos'}
-                      </button>
+            sortMode === 'equipe' ? (
+              <div className="space-y-3">
+                {equipesFiltered.map((equipe: any) => {
+                  const membros = getSortedAlunosForEquipe(alunosFiltered.filter((a: any) => a.equipe_id === equipe.id));
+                  const todosSelected = membros.length > 0 && membros.every((m: any) => selectedAlunos.includes(m.id));
+                  return (
+                    <div key={equipe.id} className="rounded-lg border border-border p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="font-bold text-sm text-foreground">{equipe.nome}</span>
+                        <button onClick={() => {
+                          if (todosSelected) setSelectedAlunos(prev => prev.filter(id => !membros.find((m: any) => m.id === id)));
+                          else setSelectedAlunos(prev => [...new Set([...prev, ...membros.map((m: any) => m.id)])]);
+                        }} className="text-xs text-primary hover:underline">
+                          {todosSelected ? 'Desmarcar todos' : 'Marcar todos'}
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                        {membros.map((aluno: any) => (
+                          <label key={aluno.id}
+                            className={`flex items-center gap-2 rounded-md px-3 py-2 cursor-pointer transition-colors ${selectedAlunos.includes(aluno.id) ? 'bg-primary/15 text-foreground' : 'bg-secondary/50 text-muted-foreground hover:bg-secondary'}`}>
+                            <input type="checkbox" checked={selectedAlunos.includes(aluno.id)} onChange={() => toggleAluno(aluno.id)} className="accent-primary" />
+                            <span className="text-sm">{aluno.nome}</span>
+                            <span className="text-xs text-muted-foreground ml-auto">{aluno.classe}</span>
+                          </label>
+                        ))}
+                      </div>
+                      {todosSelected && membros.length > 0 && (
+                        <div className="mt-2 text-xs text-level-6 flex items-center gap-1">
+                          <AlertTriangle className="w-3 h-3" /> Bônus "Todos entregaram" (+10 XP) será aplicado!
+                        </div>
+                      )}
                     </div>
+                  );
+                })}
+                {alunosFiltered.filter((a: any) => !a.equipe_id).length > 0 && (
+                  <div className="rounded-lg border border-border p-3">
+                    <span className="font-bold text-sm text-foreground mb-2 block">Sem equipe</span>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                      {membros.map((aluno: any) => (
+                      {alunosFiltered.filter((a: any) => !a.equipe_id).map((aluno: any) => (
                         <label key={aluno.id}
                           className={`flex items-center gap-2 rounded-md px-3 py-2 cursor-pointer transition-colors ${selectedAlunos.includes(aluno.id) ? 'bg-primary/15 text-foreground' : 'bg-secondary/50 text-muted-foreground hover:bg-secondary'}`}>
                           <input type="checkbox" checked={selectedAlunos.includes(aluno.id)} onChange={() => toggleAluno(aluno.id)} className="accent-primary" />
                           <span className="text-sm">{aluno.nome}</span>
-                          <span className="text-xs text-muted-foreground ml-auto">{aluno.classe}</span>
                         </label>
                       ))}
                     </div>
-                    {todosSelected && membros.length > 0 && (
-                      <div className="mt-2 text-xs text-level-6 flex items-center gap-1">
-                        <AlertTriangle className="w-3 h-3" /> Bônus "Todos entregaram" (+10 XP) será aplicado!
-                      </div>
-                    )}
                   </div>
-                );
-              })}
-              {alunosFiltered.filter((a: any) => !a.equipe_id).length > 0 && (
-                <div className="rounded-lg border border-border p-3">
-                  <span className="font-bold text-sm text-foreground mb-2 block">Sem equipe</span>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                    {alunosFiltered.filter((a: any) => !a.equipe_id).map((aluno: any) => (
-                      <label key={aluno.id}
-                        className={`flex items-center gap-2 rounded-md px-3 py-2 cursor-pointer transition-colors ${selectedAlunos.includes(aluno.id) ? 'bg-primary/15 text-foreground' : 'bg-secondary/50 text-muted-foreground hover:bg-secondary'}`}>
-                        <input type="checkbox" checked={selectedAlunos.includes(aluno.id)} onChange={() => toggleAluno(aluno.id)} className="accent-primary" />
-                        <span className="text-sm">{aluno.nome}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
+                )}
+              </div>
+            ) : (
+              /* Alphabetical mode - single flat list */
+              <div className="space-y-1.5">
+                {getAllAlunosSortedAlpha().map((aluno: any) => {
+                  const equipe = equipesFiltered.find((e: any) => e.id === aluno.equipe_id);
+                  return (
+                    <label key={aluno.id}
+                      className={`flex items-center gap-2 rounded-md px-3 py-2 cursor-pointer transition-colors ${selectedAlunos.includes(aluno.id) ? 'bg-primary/15 text-foreground' : 'bg-secondary/50 text-muted-foreground hover:bg-secondary'}`}>
+                      <input type="checkbox" checked={selectedAlunos.includes(aluno.id)} onChange={() => toggleAluno(aluno.id)} className="accent-primary" />
+                      <span className="text-sm">{aluno.nome}</span>
+                      <span className="text-xs text-muted-foreground ml-auto">{equipe?.nome || 'Sem equipe'} • {aluno.classe}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            )
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {equipesFiltered.map((equipe: any) => {
-                const xpTotal = calcEquipeXP(equipe.id, lancamentos, lancEquipes, lancAlunos, allAlunos, purchases);
+                const xpTotal = calcEquipeXPWithAccumulated(equipe.id, lancamentos, lancEquipes, lancAlunos, allAlunos, allEquipes);
                 return (
                   <button key={equipe.id} onClick={() => toggleEquipe(equipe.id)}
                     className={`rounded-lg border p-3 text-left transition-all ${selectedEquipes.includes(equipe.id) ? 'border-primary bg-primary/10 glow-primary' : 'border-border bg-secondary hover:border-primary/30'}`}>

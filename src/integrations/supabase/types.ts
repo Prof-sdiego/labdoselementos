@@ -147,6 +147,7 @@ export type Database = {
           nome: string
           sala_id: string
           user_id: string
+          xp_acumulado: number
         }
         Insert: {
           created_at?: string | null
@@ -156,6 +157,7 @@ export type Database = {
           nome: string
           sala_id: string
           user_id: string
+          xp_acumulado?: number
         }
         Update: {
           created_at?: string | null
@@ -165,6 +167,7 @@ export type Database = {
           nome?: string
           sala_id?: string
           user_id?: string
+          xp_acumulado?: number
         }
         Relationships: [
           {

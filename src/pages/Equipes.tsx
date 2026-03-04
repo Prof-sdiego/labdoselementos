@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useSalaContext } from '@/hooks/useSalaContext';
-import { useEquipes, useAlunos, useLancamentos, useLancamentoEquipes, useLancamentoAlunos, useShopPurchases, calcEquipeXP, calcAlunoXP } from '@/hooks/useSupabaseData';
+import { useEquipes, useAlunos, useLancamentos, useLancamentoEquipes, useLancamentoAlunos, useShopPurchases, calcEquipeXPWithAccumulated, calcAlunoXP } from '@/hooks/useSupabaseData';
 import { supabase } from '@/integrations/supabase/client';
 import { getNivel } from '@/types/game';
 import { LevelBadge, XPProgressBar } from '@/components/game/LevelBadge';
@@ -104,7 +104,7 @@ export default function Equipes() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {equipes.map((equipe: any) => {
           const membros = allAlunos.filter((a: any) => a.equipe_id === equipe.id);
-          const xpTotal = calcEquipeXP(equipe.id, lancamentos, lancEquipes, lancAlunos, allAlunos, purchases);
+          const xpTotal = calcEquipeXPWithAccumulated(equipe.id, lancamentos, lancEquipes, lancAlunos, allAlunos, equipes);
           return (
             <div key={equipe.id} className="rounded-xl border border-border bg-card p-5 space-y-4">
               <div className="flex items-center justify-between">

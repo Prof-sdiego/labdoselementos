@@ -15,11 +15,10 @@ export default function AlunoDashboard() {
   const [novaOcorrencia, setNovaOcorrencia] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Roulette state
-  const [roletaItem, setRoletaItem] = useState<any>(null);
-  const [roletaSpinning, setRoletaSpinning] = useState(false);
-  const [roletaResult, setRoletaResult] = useState<string | null>(null);
-  const [roletaAngle, setRoletaAngle] = useState(0);
+  // Smoke reveal state
+  const [revealItem, setRevealItem] = useState<any>(null);
+  const [revealResult, setRevealResult] = useState<string | null>(null);
+  const [revealPhase, setRevealPhase] = useState<'smoke' | 'reveal' | null>(null);
 
   useEffect(() => {
     const stored = localStorage.getItem('aluno_session');
@@ -27,7 +26,6 @@ export default function AlunoDashboard() {
     setSession(JSON.parse(stored));
   }, []);
 
-  // Auto-logout on close if not "remember me"
   useEffect(() => {
     const handleBeforeUnload = () => {
       if (!localStorage.getItem('aluno_remember')) {
@@ -73,31 +71,24 @@ export default function AlunoDashboard() {
 
   const handlePurchase = async (itemId: string, itemNome: string, preco: number) => {
     const cristais = shopData.cristais ?? session?.equipe?.cristais ?? 0;
-    if (cristais < preco) {
-      toast.error('Cristais insuficientes!'); return;
-    }
+    if (cristais < preco) { toast.error('Cristais insuficientes!'); return; }
     setLoading(true);
     const { data } = await supabase.functions.invoke('leader-api', {
       body: { action: 'purchase', code: session.code, item_id: itemId }
     });
     if (data?.error) { toast.error(data.error); setLoading(false); return; }
-    
-    // Check if item has roulette
+
     const item = (shopData.items || []).find((i: any) => i.id === itemId);
     if (item?.is_roleta && data?.roleta_resultado) {
-      setRoletaItem(item);
-      setRoletaResult(data.roleta_resultado);
-      // Spin animation
-      const opcoes = item.roleta_opcoes || [];
-      const resultIdx = opcoes.findIndex((o: any) => o.nome === data.roleta_resultado);
-      const sliceAngle = 360 / opcoes.length;
-      const targetAngle = 360 * 5 + (360 - (resultIdx * sliceAngle + sliceAngle / 2));
-      setRoletaAngle(targetAngle);
-      setRoletaSpinning(true);
+      setRevealItem(item);
+      setRevealResult(data.roleta_resultado);
+      setRevealPhase('smoke');
+      // After smoke animation, show reveal
+      setTimeout(() => setRevealPhase('reveal'), 2000);
     } else {
       toast.success(`${itemNome} comprado!`);
     }
-    
+
     await refresh(); await loadShop();
     setLoading(false);
   };
@@ -250,7 +241,7 @@ export default function AlunoDashboard() {
                         <h3 className="font-bold text-foreground flex items-center gap-2">
                           {locked && <Lock className="w-4 h-4 text-muted-foreground" />}
                           {item.nome}
-                          {item.is_roleta && <span className="text-xs bg-primary/15 text-primary px-2 py-0.5 rounded-full">🎰 Roleta</span>}
+                          {item.is_roleta && <span className="text-xs bg-primary/15 text-primary px-2 py-0.5 rounded-full">🎲 Surpresa</span>}
                         </h3>
                         <p className="text-xs text-muted-foreground">{item.descricao} • Estoque: {item.estoque}</p>
                         {locked && <p className="text-xs text-destructive mt-1">Necessário {item.xp_necessario} XP para desbloquear</p>}
@@ -286,7 +277,7 @@ export default function AlunoDashboard() {
                 <h3 className="font-bold text-foreground text-sm">{p.item_nome}</h3>
                 <p className="text-xs text-muted-foreground">{p.item_descricao}</p>
                 {p.roleta_resultado && (
-                  <p className="text-sm font-bold text-primary mt-1">🎰 Resultado: {p.roleta_resultado}</p>
+                  <p className="text-sm font-bold text-primary mt-1">🎲 Resultado: {p.roleta_resultado}</p>
                 )}
                 <p className="text-xs text-muted-foreground mt-1">{new Date(p.data).toLocaleDateString('pt-BR')}</p>
               </div>
@@ -321,46 +312,46 @@ export default function AlunoDashboard() {
         )}
       </div>
 
-      {/* Roulette modal */}
-      {roletaItem && roletaSpinning && (
+      {/* Smoke reveal modal for roulette items */}
+      {revealItem && revealPhase && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/90 backdrop-blur-sm">
-          <div className="text-center space-y-6">
-            <h2 className="text-xl font-display font-bold text-primary">🎰 Roleta — {roletaItem.nome}</h2>
-            <div className="relative w-64 h-64 mx-auto">
-              {/* Simple CSS roulette */}
-              <div className="w-full h-full rounded-full border-4 border-primary overflow-hidden relative"
-                style={{ transform: `rotate(${roletaAngle}deg)`, transition: 'transform 4s cubic-bezier(0.17, 0.67, 0.12, 0.99)' }}>
-                {(roletaItem.roleta_opcoes || []).map((op: any, i: number) => {
-                  const total = roletaItem.roleta_opcoes.length;
-                  const angle = 360 / total;
-                  const colors = ['hsl(var(--primary))', 'hsl(var(--accent))', 'hsl(var(--secondary))', 'hsl(var(--muted))', 'hsl(142 71% 45%)', 'hsl(38 92% 50%)', 'hsl(280 65% 60%)', 'hsl(0 84% 60%)'];
-                  return (
-                    <div key={i} className="absolute inset-0 flex items-center justify-center"
+          <div className="text-center space-y-6 max-w-sm w-full px-4">
+            <h2 className="text-xl font-display font-bold text-primary">🎲 {revealItem.nome}</h2>
+            
+            {revealPhase === 'smoke' && (
+              <div className="relative w-48 h-48 mx-auto flex items-center justify-center">
+                {/* Smoke particles animation */}
+                <div className="absolute inset-0 animate-pulse">
+                  {[...Array(8)].map((_, i) => (
+                    <div key={i} className="absolute rounded-full bg-muted-foreground/20 blur-xl"
                       style={{
-                        transform: `rotate(${i * angle}deg)`,
-                        clipPath: `polygon(50% 50%, ${50 + 50 * Math.cos(((-angle/2) * Math.PI) / 180)}% ${50 + 50 * Math.sin(((-angle/2) * Math.PI) / 180)}%, ${50 + 50 * Math.cos(((angle/2) * Math.PI) / 180)}% ${50 + 50 * Math.sin(((angle/2) * Math.PI) / 180)}%)`,
-                        backgroundColor: colors[i % colors.length],
-                      }}>
-                      <span className="text-xs font-bold text-white absolute" style={{ transform: `rotate(${angle/2}deg) translateY(-40px)`, textShadow: '0 1px 2px rgba(0,0,0,0.5)' }}>
-                        {op.nome}
-                      </span>
-                    </div>
-                  );
-                })}
+                        width: `${40 + Math.random() * 60}px`,
+                        height: `${40 + Math.random() * 60}px`,
+                        top: `${Math.random() * 100}%`,
+                        left: `${Math.random() * 100}%`,
+                        animation: `float ${1.5 + Math.random() * 2}s ease-in-out infinite`,
+                        animationDelay: `${Math.random() * 1}s`,
+                      }}
+                    />
+                  ))}
+                </div>
+                <p className="text-muted-foreground font-display text-sm animate-pulse z-10">Revelando...</p>
               </div>
-              {/* Pointer */}
-              <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-2 w-0 h-0 border-l-[10px] border-r-[10px] border-t-[20px] border-l-transparent border-r-transparent border-t-primary z-10" />
-            </div>
-            {roletaResult && (
-              <div>
+            )}
+
+            {revealPhase === 'reveal' && (
+              <div className="space-y-4 animate-xp-gain">
+                <div className="w-48 h-48 mx-auto rounded-xl border-2 border-primary bg-card shadow-lg shadow-primary/20 flex flex-col items-center justify-center gap-3 p-6">
+                  <span className="text-4xl">📜</span>
+                  <p className="text-lg font-display font-bold text-primary text-center">{revealResult}</p>
+                </div>
                 <button onClick={() => {
-                  setRoletaSpinning(false);
-                  setRoletaItem(null);
-                  setRoletaAngle(0);
-                  toast.success(`🎰 Você ganhou: ${roletaResult}!`);
-                  setRoletaResult(null);
-                }} className="rounded-lg bg-primary text-primary-foreground px-6 py-3 font-bold text-sm mt-4">
-                  Ver Resultado
+                  toast.success(`🎲 Você ganhou: ${revealResult}!`);
+                  setRevealItem(null);
+                  setRevealResult(null);
+                  setRevealPhase(null);
+                }} className="rounded-lg bg-primary text-primary-foreground px-6 py-3 font-bold text-sm">
+                  Fechar
                 </button>
               </div>
             )}

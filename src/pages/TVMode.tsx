@@ -1,4 +1,4 @@
-import { useSalas, useEquipes, useAlunos, useLancamentos, useLancamentoEquipes, useLancamentoAlunos, useShopPurchases, calcEquipeXP, calcAlunoXP } from '@/hooks/useSupabaseData';
+import { useSalas, useEquipes, useAlunos, useLancamentos, useLancamentoEquipes, useLancamentoAlunos, useShopPurchases, calcEquipeXPWithAccumulated, calcAlunoXP } from '@/hooks/useSupabaseData';
 import { LevelBadge, XPProgressBar } from '@/components/game/LevelBadge';
 import { Star, Atom, ArrowLeft } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -18,7 +18,7 @@ export default function TVMode() {
 
   const equipes = allEquipes
     .filter((e: any) => e.sala_id === activeSala)
-    .map((e: any) => ({ ...e, xpTotal: calcEquipeXP(e.id, lancamentos, lancEquipes, lancAlunos, allAlunos, purchases) }))
+    .map((e: any) => ({ ...e, xpTotal: calcEquipeXPWithAccumulated(e.id, lancamentos, lancEquipes, lancAlunos, allAlunos, allEquipes) }))
     .sort((a: any, b: any) => b.xpTotal - a.xpTotal);
 
   const alunosData = allAlunos

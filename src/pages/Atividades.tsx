@@ -29,8 +29,18 @@ export default function Atividades() {
   };
 
   const handleDelete = async (id: string) => {
-    await supabase.from('tipos_atividade').delete().eq('id', id);
+    // First delete related lancamentos_xp that reference this atividade
+    const { data: lancs } = await supabase.from('lancamentos_xp').select('id').eq('atividade_id', id);
+    if (lancs && lancs.length > 0) {
+      const lancIds = lancs.map(l => l.id);
+      await supabase.from('lancamento_alunos').delete().in('lancamento_id', lancIds);
+      await supabase.from('lancamento_equipes').delete().in('lancamento_id', lancIds);
+      await supabase.from('lancamentos_xp').delete().eq('atividade_id', id);
+    }
+    const { error } = await supabase.from('tipos_atividade').delete().eq('id', id);
+    if (error) { toast.error('Erro ao excluir: ' + error.message); return; }
     qc.invalidateQueries({ queryKey: ['tipos_atividade'] });
+    qc.invalidateQueries({ queryKey: ['lancamentos'] });
     toast.success('Atividade removida');
   };
 

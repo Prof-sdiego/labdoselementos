@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { useAlunos, useEquipes, useLancamentos, useLancamentoEquipes, useLancamentoAlunos, calcEquipeXP } from '@/hooks/useSupabaseData';
+import { useAlunos, useEquipes, useLancamentos, useLancamentoEquipes, useLancamentoAlunos, calcEquipeXPWithAccumulated } from '@/hooks/useSupabaseData';
 import { useSalaContext } from '@/hooks/useSalaContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Shield, Check, Lock } from 'lucide-react';
@@ -22,7 +22,7 @@ export default function PoderAlunos() {
   // Calculate XP per team
   const equipeXPMap: Record<string, number> = {};
   equipes.forEach((e: any) => {
-    equipeXPMap[e.id] = calcEquipeXP(e.id, lancamentos, lancamentoEquipes, lancamentoAlunos, alunos);
+    equipeXPMap[e.id] = calcEquipeXPWithAccumulated(e.id, lancamentos, lancamentoEquipes, lancamentoAlunos, alunos, equipes);
   });
 
   const togglePoder = async (alunoId: string, current: boolean) => {

@@ -1,4 +1,4 @@
-import { useSalas, useEquipes, useAlunos, useLancamentos, useLancamentoEquipes, useLancamentoAlunos, useShopPurchases, calcEquipeXP, calcAlunoXP } from '@/hooks/useSupabaseData';
+import { useSalas, useEquipes, useAlunos, useLancamentos, useLancamentoEquipes, useLancamentoAlunos, useShopPurchases, calcEquipeXPWithAccumulated, calcAlunoXP } from '@/hooks/useSupabaseData';
 import { useSalaContext } from '@/hooks/useSalaContext';
 import { getNivel } from '@/types/game';
 import { LevelBadge, XPProgressBar } from '@/components/game/LevelBadge';
@@ -16,7 +16,7 @@ export default function Dashboard() {
   const { data: purchases = [] } = useShopPurchases();
 
   const equipesFiltered = allEquipes
-    .map((e: any) => ({ ...e, xpTotal: calcEquipeXP(e.id, lancamentos, lancEquipes, lancAlunos, allAlunos, purchases) }))
+    .map((e: any) => ({ ...e, xpTotal: calcEquipeXPWithAccumulated(e.id, lancamentos, lancEquipes, lancAlunos, allAlunos, allEquipes) }))
     .sort((a: any, b: any) => b.xpTotal - a.xpTotal);
 
   const alunosFiltered = allAlunos

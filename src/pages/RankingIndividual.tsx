@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useEquipes, useAlunos, useLancamentos, useLancamentoEquipes, useLancamentoAlunos, useShopPurchases, calcEquipeXP, calcAlunoXP } from '@/hooks/useSupabaseData';
+import { useEquipes, useAlunos, useLancamentos, useLancamentoEquipes, useLancamentoAlunos, useShopPurchases, calcEquipeXPWithAccumulated, calcAlunoXP } from '@/hooks/useSupabaseData';
 import { useSalaContext } from '@/hooks/useSalaContext';
 import { CLASSES_INFO, getNivel } from '@/types/game';
 import { GraduationCap, Star, Shield, Unlock } from 'lucide-react';
@@ -38,7 +38,7 @@ export default function RankingIndividual() {
       <div className="space-y-2">
         {alunos.map((aluno: any, idx: number) => {
           const equipe = allEquipes.find((e: any) => e.id === aluno.equipe_id);
-          const equipeXP = equipe ? calcEquipeXP(equipe.id, lancamentos, lancEquipes, lancAlunos, allAlunos, purchases) : 0;
+          const equipeXP = equipe ? calcEquipeXPWithAccumulated(equipe.id, lancamentos, lancEquipes, lancAlunos, allAlunos, allEquipes) : 0;
           const nivelEquipe = getNivel(equipeXP);
           const classeInfo = CLASSES_INFO[aluno.classe as keyof typeof CLASSES_INFO];
           const poderDesbloqueado = classeInfo && nivelEquipe.nivel >= classeInfo.desbloqueiaNivel;
