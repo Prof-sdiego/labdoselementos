@@ -5,6 +5,81 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+interface Faixa { limite: number; multiplicador: number; }
+
+function calcMultiplicador(totalCristais: number, faixas: Faixa[], inflacaoAtiva: boolean): number {
+  if (!inflacaoAtiva || !faixas || faixas.length === 0) return 1.0;
+  const sorted = [...faixas].sort((a, b) => b.limite - a.limite);
+  for (const f of sorted) {
+    if (totalCristais >= f.limite) return f.multiplicador;
+  }
+  return 1.0;
+}
+
+function calcPrecoFinal(precoBase: number, mult: number): number {
+  return Math.max(1, Math.ceil(precoBase * mult));
+}
+
+async function getEconomiaContext(supabase: any, userId: string) {
+  // Get economia config
+  const { data: ecoConfig } = await supabase
+    .from('economia_config')
+    .select('*')
+    .eq('user_id', userId)
+    .limit(1)
+    .maybeSingle();
+
+  // Get total cristais in circulation
+  const { data: allEquipes } = await supabase
+    .from('equipes')
+    .select('cristais')
+    .eq('user_id', userId);
+
+  const totalCristais = (allEquipes || []).reduce((s: number, e: any) => s + (e.cristais || 0), 0);
+
+  const inflacaoAtiva = ecoConfig?.inflacao_ativa ?? false;
+  const faixas: Faixa[] = ecoConfig?.faixas ?? [];
+  const promoAtiva = ecoConfig?.promocao_ativa ?? false;
+  
+  // Check if promo has expired
+  let promoRealmenteAtiva = promoAtiva;
+  if (promoAtiva && ecoConfig?.promocao_fim) {
+    if (new Date(ecoConfig.promocao_fim).getTime() < Date.now()) {
+      promoRealmenteAtiva = false;
+      // Auto-expire the promo
+      await supabase.from('economia_config').update({ promocao_ativa: false }).eq('id', ecoConfig.id);
+    }
+  }
+
+  const promoMult = Number(ecoConfig?.promocao_multiplicador) || 0.75;
+  const promoGlobal = ecoConfig?.promocao_global ?? true;
+  const promoItemIds: string[] = ecoConfig?.promocao_item_ids || [];
+
+  const inflacaoMult = calcMultiplicador(totalCristais, faixas, inflacaoAtiva);
+
+  return { inflacaoMult, promoRealmenteAtiva, promoMult, promoGlobal, promoItemIds, totalCristais };
+}
+
+function getItemPrice(item: any, eco: Awaited<ReturnType<typeof getEconomiaContext>>): { preco: number; multiplicador: number; emPromocao: boolean } {
+  const { inflacaoMult, promoRealmenteAtiva, promoMult, promoGlobal, promoItemIds } = eco;
+  
+  const isPromoItem = promoRealmenteAtiva && (promoGlobal || promoItemIds.includes(item.id));
+  
+  if (isPromoItem) {
+    return {
+      preco: calcPrecoFinal(item.preco_xp, promoMult),
+      multiplicador: promoMult,
+      emPromocao: true,
+    };
+  }
+  
+  return {
+    preco: calcPrecoFinal(item.preco_xp, inflacaoMult),
+    multiplicador: inflacaoMult,
+    emPromocao: false,
+  };
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -108,13 +183,33 @@ Deno.serve(async (req) => {
         return item.sala_ids.includes(equipe.sala_id);
       });
 
+      // Get economia context for pricing
+      const eco = await getEconomiaContext(supabase, equipe.user_id);
+
+      const itemsWithPricing = items.map((item: any) => {
+        const pricing = getItemPrice(item, eco);
+        return {
+          ...item,
+          preco_original: item.preco_xp,
+          preco_atual: pricing.preco,
+          em_promocao: pricing.emPromocao,
+          multiplicador: pricing.multiplicador,
+        };
+      });
+
       const { data: purchases } = await supabase
         .from('shop_purchases')
         .select('*')
         .eq('equipe_id', equipe.id)
         .order('data', { ascending: false });
 
-      return new Response(JSON.stringify({ items, purchases, cristais: equipe.cristais ?? 0 }), {
+      return new Response(JSON.stringify({
+        items: itemsWithPricing,
+        purchases,
+        cristais: equipe.cristais ?? 0,
+        promocao_ativa: eco.promoRealmenteAtiva,
+        promo_desconto: eco.promoRealmenteAtiva ? Math.round((1 - eco.promoMult) * 100) : 0,
+      }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
@@ -133,6 +228,10 @@ Deno.serve(async (req) => {
         });
       }
 
+      // Get economia context
+      const eco = await getEconomiaContext(supabase, equipe.user_id);
+      const pricing = getItemPrice(item, eco);
+
       // Check XP requirement
       const { data: lancEquipes2 } = await supabase.from('lancamento_equipes').select('lancamento_id').eq('equipe_id', equipe.id);
       const { data: membros2 } = await supabase.from('alunos').select('id').eq('equipe_id', equipe.id);
@@ -148,11 +247,11 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Check crystals
+      // Check crystals using the calculated price
       const { data: freshEquipe } = await supabase.from('equipes').select('cristais').eq('id', equipe.id).single();
       const cristais = freshEquipe?.cristais ?? 0;
-      if (cristais < item.preco_xp) {
-        return new Response(JSON.stringify({ error: `Cristais insuficientes. Necessário: ${item.preco_xp}` }), {
+      if (cristais < pricing.preco) {
+        return new Response(JSON.stringify({ error: `Cristais insuficientes. Necessário: ${pricing.preco}` }), {
           status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
       }
@@ -170,26 +269,28 @@ Deno.serve(async (req) => {
         if (!roleta_resultado) roleta_resultado = opcoes[opcoes.length - 1].nome;
       }
 
-      // Insert purchase
+      // Insert purchase with multiplier info
       await supabase.from('shop_purchases').insert({
         user_id: equipe.user_id,
         item_id,
         equipe_id: equipe.id,
-        cristais_gasto: item.preco_xp,
+        cristais_gasto: pricing.preco,
         roleta_resultado,
+        multiplicador_aplicado: pricing.multiplicador,
+        em_promocao: pricing.emPromocao,
       });
 
       // Decrement stock and crystals
       await supabase.from('shop_items').update({ estoque: item.estoque - 1 }).eq('id', item_id);
-      await supabase.from('equipes').update({ cristais: cristais - item.preco_xp }).eq('id', equipe.id);
+      await supabase.from('equipes').update({ cristais: cristais - pricing.preco }).eq('id', equipe.id);
 
       // Create notification for professor
       const { data: salaData } = await supabase.from('salas').select('nome').eq('id', equipe.sala_id).single();
       await supabase.from('notifications').insert({
         user_id: equipe.user_id,
         tipo: 'purchase',
-        mensagem: `🛒 ${equipe.nome} comprou "${item.nome}"${roleta_resultado ? ` (Roleta: ${roleta_resultado})` : ''} — ${salaData?.nome || ''}`,
-        metadata: { equipe_id: equipe.id, item_id, item_nome: item.nome, roleta_resultado }
+        mensagem: `🛒 ${equipe.nome} comprou "${item.nome}"${roleta_resultado ? ` (Roleta: ${roleta_resultado})` : ''} por 💎${pricing.preco}${pricing.emPromocao ? ' (PROMO)' : ''} — ${salaData?.nome || ''}`,
+        metadata: { equipe_id: equipe.id, item_id, item_nome: item.nome, roleta_resultado, multiplicador: pricing.multiplicador, em_promocao: pricing.emPromocao }
       });
 
       return new Response(JSON.stringify({ success: true, roleta_resultado }), {

@@ -230,10 +230,18 @@ export default function AlunoDashboard() {
               Cristais disponíveis: <span className="font-bold text-level-6">{shopData.cristais ?? equipe.cristais ?? 0} 💎</span>
               {' '}• XP da equipe: <span className="font-bold text-primary">{equipe.xp_total}</span>
             </p>
+            {shopData.promocao_ativa && (
+              <div className="rounded-lg bg-primary/10 border border-primary/30 p-3 text-center">
+                <span className="text-sm font-bold text-primary">🔥 PROMOÇÃO ATIVA — {shopData.promo_desconto}% OFF</span>
+              </div>
+            )}
             <div className="space-y-3">
-              {[...(shopData.items || [])].sort((a: any, b: any) => a.preco_xp - b.preco_xp).map((item: any) => {
+              {[...(shopData.items || [])].sort((a: any, b: any) => (a.preco_atual ?? a.preco_xp) - (b.preco_atual ?? b.preco_xp)).map((item: any) => {
                 const locked = item.xp_necessario > 0 && equipe.xp_total < item.xp_necessario;
                 const cristais = shopData.cristais ?? equipe.cristais ?? 0;
+                const precoAtual = item.preco_atual ?? item.preco_xp;
+                const precoOriginal = item.preco_original ?? item.preco_xp;
+                const emPromocao = item.em_promocao ?? false;
                 return (
                   <div key={item.id} className={`rounded-xl border bg-card p-4 ${locked ? 'border-muted opacity-60' : 'border-border'}`}>
                     <div className="flex items-center justify-between">
@@ -242,14 +250,20 @@ export default function AlunoDashboard() {
                           {locked && <Lock className="w-4 h-4 text-muted-foreground" />}
                           {item.nome}
                           {item.is_roleta && <span className="text-xs bg-primary/15 text-primary px-2 py-0.5 rounded-full">🎲 Surpresa</span>}
+                          {emPromocao && <span className="text-xs bg-primary/15 text-primary px-2 py-0.5 rounded-full">PROMO</span>}
                         </h3>
                         <p className="text-xs text-muted-foreground">{item.descricao} • Estoque: {item.estoque}</p>
                         {locked && <p className="text-xs text-destructive mt-1">Necessário {item.xp_necessario} XP para desbloquear</p>}
                       </div>
                       <div className="flex items-center gap-3">
-                        <span className="font-display font-bold text-level-6 flex items-center gap-1"><Gem className="w-4 h-4" />{item.preco_xp}</span>
+                        <div className="text-right">
+                          {emPromocao && precoOriginal !== precoAtual && (
+                            <span className="text-xs text-muted-foreground line-through mr-1">{precoOriginal}</span>
+                          )}
+                          <span className="font-display font-bold text-level-6 flex items-center gap-1"><Gem className="w-4 h-4" />{precoAtual}</span>
+                        </div>
                         {!locked && (
-                          <button onClick={() => handlePurchase(item.id, item.nome, item.preco_xp)} disabled={loading || cristais < item.preco_xp}
+                          <button onClick={() => handlePurchase(item.id, item.nome, precoAtual)} disabled={loading || cristais < precoAtual}
                             className="rounded-lg bg-primary text-primary-foreground px-3 py-1.5 text-xs font-bold disabled:opacity-30">
                             Comprar
                           </button>

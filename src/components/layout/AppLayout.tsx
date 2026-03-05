@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Zap, Trophy, Users, GraduationCap, FlaskConical,
   ScrollText, History, Layers, ArrowLeftRight, Monitor, Menu, X, Atom,
-  ShoppingCart, AlertTriangle, LogOut, Shield, RefreshCw, Bell
+  ShoppingCart, AlertTriangle, LogOut, Shield, RefreshCw, Bell, TrendingUp
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
@@ -27,6 +27,7 @@ const navItems = [
   { to: '/fases', label: 'Fases', icon: Layers },
   { to: '/transferencias', label: 'Transferências', icon: ArrowLeftRight },
   { to: '/loja', label: 'Loja', icon: ShoppingCart },
+  { to: '/economia', label: 'Economia', icon: TrendingUp },
   { to: '/ocorrencias', label: 'Ocorrências', icon: AlertTriangle },
   { to: '/tv', label: 'Modo TV', icon: Monitor },
 ];
