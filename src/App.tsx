@@ -19,6 +19,7 @@ import Historico from "@/pages/Historico";
 import Fases from "@/pages/Fases";
 import Transferencias from "@/pages/Transferencias";
 import Loja from "@/pages/Loja";
+import Economia from "@/pages/Economia";
 import Ocorrencias from "@/pages/Ocorrencias";
 import PoderAlunos from "@/pages/PoderAlunos";
 import TVMode from "@/pages/TVMode";
@@ -64,6 +65,7 @@ const AppRoutes = () => (
     <Route path="/fases" element={<ProtectedRoute><AppLayout><Fases /></AppLayout></ProtectedRoute>} />
     <Route path="/transferencias" element={<ProtectedRoute><SalaGate><AppLayout><Transferencias /></AppLayout></SalaGate></ProtectedRoute>} />
     <Route path="/loja" element={<ProtectedRoute><AppLayout><Loja /></AppLayout></ProtectedRoute>} />
+    <Route path="/economia" element={<ProtectedRoute><AppLayout><Economia /></AppLayout></ProtectedRoute>} />
     <Route path="/ocorrencias" element={<ProtectedRoute><SalaGate><AppLayout><Ocorrencias /></AppLayout></SalaGate></ProtectedRoute>} />
     <Route path="/poder-alunos" element={<ProtectedRoute><SalaGate><AppLayout><PoderAlunos /></AppLayout></SalaGate></ProtectedRoute>} />
     <Route path="*" element={<NotFound />} />
