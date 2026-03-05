@@ -138,6 +138,45 @@ export type Database = {
           },
         ]
       }
+      economia_config: {
+        Row: {
+          created_at: string | null
+          faixas: Json
+          id: string
+          inflacao_ativa: boolean
+          promocao_ativa: boolean
+          promocao_fim: string | null
+          promocao_global: boolean
+          promocao_item_ids: string[] | null
+          promocao_multiplicador: number
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          faixas?: Json
+          id?: string
+          inflacao_ativa?: boolean
+          promocao_ativa?: boolean
+          promocao_fim?: string | null
+          promocao_global?: boolean
+          promocao_item_ids?: string[] | null
+          promocao_multiplicador?: number
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          faixas?: Json
+          id?: string
+          inflacao_ativa?: boolean
+          promocao_ativa?: boolean
+          promocao_fim?: string | null
+          promocao_global?: boolean
+          promocao_item_ids?: string[] | null
+          promocao_multiplicador?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
       equipes: {
         Row: {
           created_at: string | null
@@ -495,9 +534,11 @@ export type Database = {
           ciente: boolean
           cristais_gasto: number
           data: string | null
+          em_promocao: boolean
           equipe_id: string
           id: string
           item_id: string
+          multiplicador_aplicado: number
           roleta_resultado: string | null
           user_id: string
         }
@@ -505,9 +546,11 @@ export type Database = {
           ciente?: boolean
           cristais_gasto?: number
           data?: string | null
+          em_promocao?: boolean
           equipe_id: string
           id?: string
           item_id: string
+          multiplicador_aplicado?: number
           roleta_resultado?: string | null
           user_id: string
         }
@@ -515,9 +558,11 @@ export type Database = {
           ciente?: boolean
           cristais_gasto?: number
           data?: string | null
+          em_promocao?: boolean
           equipe_id?: string
           id?: string
           item_id?: string
+          multiplicador_aplicado?: number
           roleta_resultado?: string | null
           user_id?: string
         }
