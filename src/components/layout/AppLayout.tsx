@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Zap, Trophy, Users, GraduationCap, FlaskConical,
   ScrollText, History, Layers, ArrowLeftRight, Monitor, Menu, X, Atom,
-  ShoppingCart, AlertTriangle, LogOut, Shield, RefreshCw, Bell, TrendingUp
+  ShoppingCart, AlertTriangle, LogOut, Shield, RefreshCw, Bell, TrendingUp, Shuffle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
@@ -16,6 +16,7 @@ import { useQueryClient } from '@tanstack/react-query';
 const navItems = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/lancar-xp', label: 'Lançar XP', icon: Zap },
+  { to: '/sorteio', label: 'Sorteio', icon: Shuffle },
   { to: '/ranking-equipes', label: 'Ranking Equipes', icon: Trophy },
   { to: '/ranking-individual', label: 'Ranking Individual', icon: GraduationCap },
   { to: '/salas', label: 'Salas', icon: Layers },
