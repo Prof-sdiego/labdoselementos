@@ -206,6 +206,7 @@ export default function Equipes() {
                     );
                   })}
                 </div>
+              </div>
               <div className="flex justify-end pt-2">
                 <button onClick={() => handleDelete(equipe.id)} className="flex items-center gap-1 text-xs text-destructive/70 hover:text-destructive transition-colors">
                   <Trash2 className="w-3 h-3" /> Excluir Equipe
