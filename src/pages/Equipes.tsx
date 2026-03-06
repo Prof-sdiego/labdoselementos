@@ -5,7 +5,7 @@ import { useEquipes, useAlunos, useLancamentos, useLancamentoEquipes, useLancame
 import { supabase } from '@/integrations/supabase/client';
 import { getNivel } from '@/types/game';
 import { LevelBadge, XPProgressBar } from '@/components/game/LevelBadge';
-import { FlaskConical, Plus, Users, Key, Copy, Pencil, Check, X, Gem, Minus } from 'lucide-react';
+import { FlaskConical, Plus, Users, Key, Copy, Pencil, Check, X, Gem, Minus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -75,6 +75,23 @@ export default function Equipes() {
     qc.invalidateQueries({ queryKey: ['equipes'] });
     setCristaisEdit(null);
     toast.success('Cristais atualizados!');
+  };
+
+  const handleDelete = async (id: string) => {
+    // Clean up all FK references
+    await supabase.from('shop_purchases').delete().eq('equipe_id', id);
+    await supabase.from('ocorrencias').delete().eq('equipe_id', id);
+    await supabase.from('artefatos_atribuidos').delete().eq('equipe_id', id);
+    await supabase.from('transferencias').delete().eq('equipe_origem_id', id);
+    await supabase.from('transferencias').delete().eq('equipe_destino_id', id);
+    await supabase.from('lancamento_equipes').delete().eq('equipe_id', id);
+    // Update alunos to remove equipe reference
+    await supabase.from('alunos').update({ equipe_id: null }).eq('equipe_id', id);
+    const { error } = await supabase.from('equipes').delete().eq('id', id);
+    if (error) { toast.error('Erro: ' + error.message); return; }
+    qc.invalidateQueries({ queryKey: ['equipes'] });
+    qc.invalidateQueries({ queryKey: ['alunos'] });
+    toast.success('Equipe excluída');
   };
 
   return (
@@ -189,6 +206,11 @@ export default function Equipes() {
                     );
                   })}
                 </div>
+              </div>
+              <div className="flex justify-end pt-2">
+                <button onClick={() => handleDelete(equipe.id)} className="flex items-center gap-1 text-xs text-destructive/70 hover:text-destructive transition-colors">
+                  <Trash2 className="w-3 h-3" /> Excluir Equipe
+                </button>
               </div>
             </div>
           );

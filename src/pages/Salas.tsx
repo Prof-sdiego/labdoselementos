@@ -27,7 +27,46 @@ export default function Salas() {
   };
 
   const handleDelete = async (id: string) => {
-    await supabase.from('salas').delete().eq('id', id);
+    // Clean up all FK references before deleting sala
+    const { data: equipes } = await supabase.from('equipes').select('id').eq('sala_id', id);
+    const equipeIds = (equipes || []).map(e => e.id);
+    if (equipeIds.length > 0) {
+      await supabase.from('shop_purchases').delete().in('equipe_id', equipeIds);
+      await supabase.from('ocorrencias').delete().in('equipe_id', equipeIds);
+      await supabase.from('artefatos_atribuidos').delete().in('equipe_id', equipeIds);
+      await supabase.from('transferencias').delete().in('equipe_origem_id', equipeIds);
+      await supabase.from('transferencias').delete().in('equipe_destino_id', equipeIds);
+      await supabase.from('lancamento_equipes').delete().in('equipe_id', equipeIds);
+      // Clean alunos FK refs
+      const { data: alunos } = await supabase.from('alunos').select('id').eq('sala_id', id);
+      const alunoIds = (alunos || []).map(a => a.id);
+      if (alunoIds.length > 0) {
+        await supabase.from('lancamento_alunos').delete().in('aluno_id', alunoIds);
+        await supabase.from('artefatos_atribuidos').delete().in('aluno_id', alunoIds);
+        await supabase.from('transferencias').delete().in('aluno_id', alunoIds);
+      }
+      await supabase.from('alunos').delete().eq('sala_id', id);
+      await supabase.from('equipes').delete().eq('sala_id', id);
+    } else {
+      // No equipes but might have alunos
+      const { data: alunos } = await supabase.from('alunos').select('id').eq('sala_id', id);
+      const alunoIds = (alunos || []).map(a => a.id);
+      if (alunoIds.length > 0) {
+        await supabase.from('lancamento_alunos').delete().in('aluno_id', alunoIds);
+        await supabase.from('artefatos_atribuidos').delete().in('aluno_id', alunoIds);
+      }
+      await supabase.from('alunos').delete().eq('sala_id', id);
+    }
+    // Clean lancamentos_xp for this sala
+    const { data: lancs } = await supabase.from('lancamentos_xp').select('id').eq('sala_id', id);
+    const lancIds = (lancs || []).map(l => l.id);
+    if (lancIds.length > 0) {
+      await supabase.from('lancamento_alunos').delete().in('lancamento_id', lancIds);
+      await supabase.from('lancamento_equipes').delete().in('lancamento_id', lancIds);
+      await supabase.from('lancamentos_xp').delete().eq('sala_id', id);
+    }
+    const { error } = await supabase.from('salas').delete().eq('id', id);
+    if (error) { toast.error('Erro: ' + error.message); return; }
     qc.invalidateQueries({ queryKey: ['salas'] });
     toast.success('Sala excluída');
   };

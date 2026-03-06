@@ -29,6 +29,7 @@ import AlunoDashboard from "@/pages/AlunoDashboard";
 import LeaderLogin from "@/pages/LeaderLogin";
 import LeaderDashboard from "@/pages/LeaderDashboard";
 import NotFound from "@/pages/NotFound";
+import Sorteio from "@/pages/Sorteio";
 
 const queryClient = new QueryClient();
 
@@ -67,6 +68,7 @@ const AppRoutes = () => (
     <Route path="/loja" element={<ProtectedRoute><AppLayout><Loja /></AppLayout></ProtectedRoute>} />
     <Route path="/economia" element={<ProtectedRoute><AppLayout><Economia /></AppLayout></ProtectedRoute>} />
     <Route path="/ocorrencias" element={<ProtectedRoute><SalaGate><AppLayout><Ocorrencias /></AppLayout></SalaGate></ProtectedRoute>} />
+    <Route path="/sorteio" element={<ProtectedRoute><SalaGate><AppLayout><Sorteio /></AppLayout></SalaGate></ProtectedRoute>} />
     <Route path="/poder-alunos" element={<ProtectedRoute><SalaGate><AppLayout><PoderAlunos /></AppLayout></SalaGate></ProtectedRoute>} />
     <Route path="*" element={<NotFound />} />
   </Routes>
