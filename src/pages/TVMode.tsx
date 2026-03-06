@@ -2,10 +2,11 @@ import { useSalas, useEquipes, useAlunos, useLancamentos, useLancamentoEquipes, 
 import { LevelBadge, XPProgressBar } from '@/components/game/LevelBadge';
 import { Star, Atom, ArrowLeft } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import { useSalaContext } from '@/hooks/useSalaContext';
 
 export default function TVMode() {
   const { data: salas = [] } = useSalas();
+  const { activeSalaId } = useSalaContext();
   const { data: allEquipes = [] } = useEquipes();
   const { data: allAlunos = [] } = useAlunos();
   const { data: lancamentos = [] } = useLancamentos();
@@ -13,8 +14,7 @@ export default function TVMode() {
   const { data: lancAlunos = [] } = useLancamentoAlunos();
   const { data: purchases = [] } = useShopPurchases();
 
-  const [salaId, setSalaId] = useState('');
-  const activeSala = salaId || salas[0]?.id || '';
+  const activeSala = activeSalaId || salas[0]?.id || '';
 
   const equipes = allEquipes
     .filter((e: any) => e.sala_id === activeSala)
